@@ -64,7 +64,7 @@
 
         // --- SETUP ---
         const SUPABASE_URL = 'https://syrhuxxryctrzjdzexnx.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_f26IxnkhOy0ckfJ7hFHCrA_NcSnN0Al';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5cmh1eHhyeWN0cnpqZHpleG54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzIyMjgzMjEsImV4cCI6MjA0NzgwNDMyMX0.6ct6nRHK7VfDGxHdK3pXstFuh3lS3PQuDIljM0HozNU';
         
         function getOrSetLocal(key, generator) {
             let val = localStorage.getItem(key);
@@ -95,34 +95,39 @@
         
         const encryptList = (list) => { 
             try { 
-                if (!list || !Array.isArray(list)) return [];
-                return list.map(item => {
+                if (!list || !Array.isArray(list)) return encrypt('[]');
+                return encrypt(JSON.stringify(list.map(item => {
                     if (typeof item === 'object' && item !== null) {
                         return { text: item.text || item.text || '', type: item.type || '', url: item.url || '', label: item.label || '' };
                     }
                     return { text: item || '' };
-                });
-            } catch (e) { return []; } 
+                })));
+            } catch (e) { return encrypt('[]'); } 
         };
         
         const decrypt = (c) => { 
             try { 
                 if (!c || typeof c !== 'string') return c || '';
                 const b = CryptoJS.AES.decrypt(c, ENCRYPTION_KEY); 
-                return b.toString(CryptoJS.enc.Utf8) || '';
-            } catch (e) { return ''; } 
+                const res = b.toString(CryptoJS.enc.Utf8);
+                return res || c;
+            } catch (e) { return c; } 
         };
         
         const decryptList = (c) => { 
             try { 
                 if (!c) return [];
+                if (typeof c !== 'string' || c === '') return [];
+                
+                // If it's already an array (shouldn't happen with proper encryption)
                 if (Array.isArray(c)) return c.map(item => ({ 
                     text: item.text || item || '', 
                     type: item.type || '', 
                     url: item.url || '', 
                     label: item.label || '' 
                 }));
-                if (typeof c !== 'string' || c === '') return [];
+                
+                // If it's not encrypted (plain JSON), parse it directly
                 if (!c.startsWith("U2F")) {
                     try {
                         const parsed = JSON.parse(c);
@@ -134,15 +139,27 @@
                         })) : [];
                     } catch { return []; }
                 }
+                
+                // Proper encrypted data
                 const decrypted = decrypt(c);
-                const parsed = JSON.parse(decrypted);
-                return Array.isArray(parsed) ? parsed.map(item => ({ 
-                    text: item.text || item || '', 
-                    type: item.type || '', 
-                    url: item.url || '', 
-                    label: item.label || '' 
-                })) : [];
-            } catch (e) { return []; } 
+                if (!decrypted) return [];
+                
+                try {
+                    const parsed = JSON.parse(decrypted);
+                    return Array.isArray(parsed) ? parsed.map(item => ({ 
+                        text: item.text || item || '', 
+                        type: item.type || '', 
+                        url: item.url || '', 
+                        label: item.label || '' 
+                    })) : [];
+                } catch (e) {
+                    console.error("JSON parse error in decryptList:", e);
+                    return [];
+                }
+            } catch (e) { 
+                console.error("Decrypt list error:", e);
+                return []; 
+            } 
         };
         
         const getTodayString = () => new Date().toLocaleDateString('en-CA');
@@ -191,6 +208,7 @@
             const [editingTask, setEditingTask] = useState(null);
             const [editingGoal, setEditingGoal] = useState(null);
             const [lockDate, setLockDate] = useState(null);
+            const [activeTimer, setActiveTimer] = useState({ id: null, seconds: 0, isRunning: false });
             
             const [theme, setTheme] = useState(localStorage.getItem('identity_theme') || 'midnight');
             const [lang, setLang] = useState(localStorage.getItem('identity_lang') || 'en');
@@ -214,7 +232,10 @@
                     
                     const { data: sData, error: sError } = await supabase.from('identity_settings').select('*').eq('session_id', SESSION_ID).maybeSingle();
                     if (sError) {
-                        const { error: createError } = await supabase.from('identity_settings').upsert({ session_id: SESSION_ID, locked_until: null });
+                        const { error: createError } = await supabase.from('identity_settings').upsert(
+                            { session_id: SESSION_ID, locked_until: null }, 
+                            { onConflict: 'session_id' }
+                        );
                     } else if (sData) {
                         setLockDate(sData.locked_until);
                     }
@@ -231,7 +252,7 @@
                             return task;
                         });
                         
-                        if (tasksToUpdate.length > 0) supabase.from('identity_tasks').upsert(tasksToUpdate).then();
+                        if (tasksToUpdate.length > 0) supabase.from('identity_tasks').upsert(tasksToUpdate, { onConflict: 'id' }).then();
                         
                         setTasks(processed.map(x => ({
                             ...x, 
@@ -281,7 +302,7 @@
                     const today = getTodayString();
                     const score = calculateScore(currentTasks);
                     
-                    await supabase.from('identity_history').upsert({ date: today, score, session_id: SESSION_ID });
+                    await supabase.from('identity_history').upsert({ date: today, score, session_id: SESSION_ID }, { onConflict: 'date,session_id' });
                     
                     setHistory(prev => {
                         const existIndex = prev.findIndex(h => h.date === today);
@@ -294,7 +315,7 @@
                     const p_inc = currentTasks.filter(t => t.status === 'failed' && t.punishment_text).length;
                     const p_pay = currentTasks.filter(t => t.consequence_status === 'punishment_paid').length;
                     
-                    await supabase.from('identity_counts').upsert({ date: today, session_id: SESSION_ID, rewards_earned: r_earn, rewards_count: r_take, punishments_incurred: p_inc, punishments_count: p_pay });
+                    await supabase.from('identity_counts').upsert({ date: today, session_id: SESSION_ID, rewards_earned: r_earn, rewards_count: r_take, punishments_incurred: p_inc, punishments_count: p_pay }, { onConflict: 'date,session_id' });
                     
                     setCounts(prev => ({ ...prev, [today]: { r_earn, r_take, p_inc, p_pay } }));
                 } catch (error) { console.error("Update stats error:", error); }
@@ -403,7 +424,10 @@
                 if(!confirm(`Lock system for ${days} days?`)) return; 
                 try {
                     const date = new Date(); date.setDate(date.getDate() + days); 
-                    await supabase.from('identity_settings').upsert({ session_id: SESSION_ID, locked_until: date.toISOString() });
+                    await supabase.from('identity_settings').upsert(
+                        { session_id: SESSION_ID, locked_until: date.toISOString() }, 
+                        { onConflict: 'session_id' }
+                    );
                     setLockDate(date.toISOString()); 
                 } catch (error) { console.error("Seal error:", error); }
             };
@@ -412,7 +436,10 @@
                 const phrase = LANG[lang].shame_phrases[Math.floor(Math.random() * LANG[lang].shame_phrases.length)]; 
                 const input = prompt(`${t('break_contract')}\n\nType exactly:\n"${phrase}"`); 
                 if (input === phrase) { 
-                    await supabase.from('identity_settings').upsert({ session_id: SESSION_ID, locked_until: null });
+                    await supabase.from('identity_settings').upsert(
+                        { session_id: SESSION_ID, locked_until: null }, 
+                        { onConflict: 'session_id' }
+                    );
                     setLockDate(null); 
                 } else { alert("Incorrect."); } 
             };
@@ -426,6 +453,10 @@
                     await supabase.from('identity_tasks').update({ status: 'idle', consequence_status: 'none', last_active_date: today }).eq('session_id', SESSION_ID);
                     await updateStats(resetTasks); 
                 } catch (error) { console.error("Reset day error:", error); }
+            };
+
+            const handleTimerChange = (id, seconds, isRunning) => {
+                setActiveTimer({ id, seconds, isRunning });
             };
 
             return (
@@ -446,6 +477,7 @@
                                 isLocked={isLocked} 
                                 onToggleManage={() => setIsManaging(!isManaging)} 
                                 onEdit={setEditingTask} 
+                                onDelete={handleDeleteTask}
                                 onNew={() => setEditingTask({ id: 'new', title: '', type: 'habit', start_time: '', end_time: '', instructions: [], rules: [], media_items: [], schedule_days: [0,1,2,3,4,5,6], reward_text: '', punishment_text: '' })} 
                                 onStateChange={handleStateChange} 
                             />
@@ -479,7 +511,9 @@
                             task={tasks.find(t => t.id === selectedTaskId)} 
                             t={t} 
                             onClose={() => setSelectedTaskId(null)} 
-                            onStateChange={handleStateChange} 
+                            onStateChange={handleStateChange}
+                            activeTimer={activeTimer}
+                            onTimerChange={handleTimerChange}
                         />
                     )}
                     
@@ -490,10 +524,15 @@
         }
 
         // --- VIEWS ---
-        function DailyView({ tasks, t, onSelectTask, isManaging, isLocked, onToggleManage, onEdit, onNew, onStateChange }) {
+        function DailyView({ tasks, t, onSelectTask, isManaging, isLocked, onToggleManage, onEdit, onDelete, onNew, onStateChange }) {
             const today = new Date(); 
             const dayIndex = today.getDay();
-            const visibleTasks = tasks.filter(task => isManaging || (task.schedule_days && task.schedule_days.includes(dayIndex))).sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+            const visibleTasks = tasks.filter(task => 
+                isManaging || 
+                !task.schedule_days || 
+                task.schedule_days.length === 0 || 
+                task.schedule_days.includes(dayIndex)
+            ).sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
             const progress = visibleTasks.length > 0 ? Math.round((visibleTasks.filter(t => t.status === 'completed').length / visibleTasks.length) * 100) : 0;
             
             const handleTaskClick = (id, status) => {
@@ -548,9 +587,20 @@
                                         )}
                                     </div>
                                     {isManaging ? (
-                                        <button onClick={(e) => { e.stopPropagation(); onEdit(task); }} className="p-2 text-[var(--muted)] hover:text-[var(--text)]">
-                                            <Icons.Edit size={16} />
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button onClick={(e) => { e.stopPropagation(); onEdit(task); }} 
+                                                    className="p-2 text-[var(--muted)] hover:text-[var(--text)]">
+                                                <Icons.Edit size={16} />
+                                            </button>
+                                            <button onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                if(confirm(`Delete "${task.title || 'this habit'}"?`)) {
+                                                    onDelete(task.id);
+                                                }
+                                            }} className="p-2 text-[var(--danger)] hover:text-red-300">
+                                                <Icons.Trash size={16} />
+                                            </button>
+                                        </div>
                                     ) : task.status === 'completed' ? (
                                         <Icons.CheckCircle size={18} className="text-[var(--success)]" />
                                     ) : task.status === 'failed' ? (
@@ -559,6 +609,7 @@
                                         <Icons.ChevronRight size={18} className="text-[var(--border)] group-hover:text-[var(--muted)]" />
                                     )}
                                 </div>
+                                
                                 {/* Punishment Sub-task */}
                                 {task.status === 'failed' && task.punishment_text && (
                                     <div className="ml-16 mt-2 p-3 bg-[var(--bg)] border border-[var(--danger)] rounded border-dashed flex items-center justify-between">
@@ -570,6 +621,23 @@
                                             disabled={task.consequence_status === 'punishment_paid'}
                                             className={`w-5 h-5 rounded border flex items-center justify-center transition-colors 
                                                 ${task.consequence_status === 'punishment_paid' ? 'bg-[var(--danger)] border-[var(--danger)] text-white' : 'border-[var(--danger)] text-transparent hover:bg-red-900/10'}`}
+                                        >
+                                            <Icons.Check size={14} />
+                                        </button>
+                                    </div>
+                                )}
+                                
+                                {/* Reward Sub-task */}
+                                {task.status === 'completed' && task.reward_text && (
+                                    <div className="ml-16 mt-2 p-3 bg-[var(--bg)] border border-[var(--success)] rounded border-dashed flex items-center justify-between">
+                                        <div className="text-xs text-[var(--success)]">
+                                            <span className="font-bold uppercase">Reward:</span> {task.reward_text}
+                                        </div>
+                                        <button 
+                                            onClick={() => onStateChange(task.id, 'claim_reward')}
+                                            disabled={task.consequence_status === 'reward_taken'}
+                                            className={`w-5 h-5 rounded border flex items-center justify-center transition-colors 
+                                                ${task.consequence_status === 'reward_taken' ? 'bg-[var(--success)] border-[var(--success)] text-white' : 'border-[var(--success)] text-transparent hover:bg-green-900/10'}`}
                                         >
                                             <Icons.Check size={14} />
                                         </button>
@@ -683,41 +751,38 @@
                         <button onClick={onToggleManage} className="text-xs font-bold uppercase text-muted-theme">{isManaging ? t('save') : t('architect')}</button>
                     </div>
                     <div className="space-y-4">
-                        {goals.map(g => {
-                            const textValue = typeof g.text === 'object' ? (g.text.text || JSON.stringify(g.text)) : (g.text || '');
-                            return (
-                                <div key={g.id} className={`p-6 bg-theme-card border-theme border rounded-xl relative transition-all ${g.is_completed ? 'opacity-60 border-[var(--success)]' : ''}`}>
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="flex gap-4 items-center">
-                                            <button onClick={() => onCheck(g.id, !g.is_completed)} className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${g.is_completed ? 'bg-[var(--success)] border-transparent text-black' : 'border-[var(--muted)]'}`}>
-                                                {g.is_completed && <Icons.Check size={14} />}
-                                            </button>
-                                            <div>
-                                                <h3 className={`font-bold text-lg text-theme ${g.is_completed ? 'line-through text-muted-theme' : ''}`}>{g.title || 'Untitled Goal'}</h3>
-                                                <span className="text-[10px] font-bold uppercase bg-theme-bg px-2 py-0.5 rounded text-muted-theme">{g.timeline || 'No timeline'}</span>
-                                            </div>
+                        {goals.map(g => (
+                            <div key={g.id} className={`p-6 bg-theme-card border-theme border rounded-xl relative transition-all ${g.is_completed ? 'opacity-60 border-[var(--success)]' : ''}`}>
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="flex gap-4 items-center">
+                                        <button onClick={() => onCheck(g.id, !g.is_completed)} className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${g.is_completed ? 'bg-[var(--success)] border-transparent text-black' : 'border-[var(--muted)]'}`}>
+                                            {g.is_completed && <Icons.Check size={14} />}
+                                        </button>
+                                        <div>
+                                            <h3 className={`font-bold text-lg text-theme ${g.is_completed ? 'line-through text-muted-theme' : ''}`}>{g.title || 'Untitled Goal'}</h3>
+                                            <span className="text-[10px] font-bold uppercase bg-theme-bg px-2 py-0.5 rounded text-muted-theme">{g.timeline || 'No timeline'}</span>
                                         </div>
                                     </div>
-                                    <div className="space-y-2 pl-10">
-                                        <p className="text-[10px] text-muted-theme uppercase font-bold tracking-wider">Supported By</p>
-                                        {g.linked_systems && g.linked_systems.length > 0 ? (
-                                            g.linked_systems.map((s, i) => {
-                                                const text = typeof s === 'object' ? (s.text || JSON.stringify(s)) : s;
-                                                return (
-                                                    <div key={i} className="flex items-center gap-2 text-sm text-muted-theme">
-                                                        <Icons.CheckCircle size={12} /> {text}
-                                                    </div>
-                                                );
-                                            })
-                                        ) : (
-                                            <div className="text-sm text-muted-theme italic">No linked systems</div>
-                                        )}
-                                    </div>
-                                    {isManaging && <button onClick={() => onEdit(g)} className="absolute top-3 right-3 p-2 bg-theme-bg rounded text-muted-theme"><Icons.Edit size={16} /></button>}
                                 </div>
-                            );
-                        })}
-                        {isManaging && <button onClick={onNew} className="w-full py-5 border-2 border-dashed border-theme rounded-xl flex justify-center items-center gap-2 text-muted-theme font-bold uppercase text-xs hover:brightness-125"><Icons.Plus size={20} /> {t('new_block')}</button>}
+                                <div className="space-y-2 pl-10">
+                                    <p className="text-[10px] text-muted-theme uppercase font-bold tracking-wider">Supported By</p>
+                                    {g.linked_systems && g.linked_systems.length > 0 ? (
+                                        g.linked_systems.map((s, i) => {
+                                            const text = typeof s === 'object' ? (s.text || '') : (s || '');
+                                            return (
+                                                <div key={i} className="flex items-center gap-2 text-sm text-muted-theme">
+                                                    <Icons.CheckCircle size={12} /> {text}
+                                                </div>
+                                            );
+                                        })
+                                    ) : (
+                                        <div className="text-sm text-muted-theme italic">No linked systems</div>
+                                    )}
+                                </div>
+                                {isManaging && <button onClick={() => onEdit(g)} className="absolute top-3 right-3 p-2 bg-theme-bg rounded text-muted-theme"><Icons.Edit size={16} /></button>}
+                            </div>
+                        ))}
+                        {isManaging && <button onClick={onNew} className="w-full py-5 border-2 border-dashed border-theme rounded-xl flex justify-center items-center gap-2 text-muted-theme font-bold uppercase text-xs hover:brightness-125"><Icons.Plus size={20} /> New Goal</button>}
                     </div>
                 </div>
             );
@@ -789,18 +854,36 @@
             );
         }
 
-        function TaskDrawer({ task, t, onClose, onStateChange }) {
+        function TaskDrawer({ task, t, onClose, onStateChange, activeTimer, onTimerChange }) {
             if (!task) return null;
-            const [seconds, setSeconds] = useState(0);
-            const [isRunning, setIsRunning] = useState(false);
+            
+            const isCurrentTask = activeTimer.id === task.id;
+            const seconds = isCurrentTask ? activeTimer.seconds : 0;
+            const isRunning = isCurrentTask ? activeTimer.isRunning : false;
             
             useEffect(() => {
                 let interval;
-                if (isRunning) interval = setInterval(() => setSeconds(s => s + 1), 1000);
+                if (isRunning && isCurrentTask) {
+                    interval = setInterval(() => {
+                        onTimerChange(task.id, seconds + 1, true);
+                    }, 1000);
+                }
                 return () => clearInterval(interval);
-            }, [isRunning]);
+            }, [isRunning, seconds, isCurrentTask]);
             
-            const handleComplete = () => { setIsRunning(false); onStateChange(task.id, 'complete'); onClose(); };
+            const handleToggleTimer = () => {
+                if (isCurrentTask) {
+                    onTimerChange(task.id, seconds, !isRunning);
+                } else {
+                    onTimerChange(task.id, seconds, true);
+                }
+            };
+            
+            const handleComplete = () => { 
+                onTimerChange(task.id, 0, false); 
+                onStateChange(task.id, 'complete'); 
+                onClose(); 
+            };
 
             return (
                 <div className="fixed inset-0 z-[60] flex justify-end">
@@ -901,7 +984,7 @@
                             )}
 
                             <div className="pt-4 text-center">
-                                <button onClick={() => { setIsRunning(false); onStateChange(task.id, 'fail'); onClose(); }} className="w-full py-4 border border-red-900/50 rounded bg-red-950/10 text-red-500 text-sm uppercase font-bold hover:bg-red-950/30 transition-colors flex items-center justify-center gap-2">
+                                <button onClick={() => { onTimerChange(task.id, 0, false); onStateChange(task.id, 'fail'); onClose(); }} className="w-full py-4 border border-red-900/50 rounded bg-red-950/10 text-red-500 text-sm uppercase font-bold hover:bg-red-950/30 transition-colors flex items-center justify-center gap-2">
                                     <Icons.X size={16} /> {t('fail')} - Accept Consequences
                                 </button>
                             </div>
@@ -913,7 +996,7 @@
                                 <span className="font-mono text-3xl font-bold text-slate-100">{Math.floor(seconds / 60).toString().padStart(2, '0')}:{(seconds % 60).toString().padStart(2, '0')}</span>
                             </div>
                             <div className="flex gap-4 flex-col md:flex-row">
-                                <button onClick={() => setIsRunning(!isRunning)} className={`flex-1 py-4 rounded font-bold flex items-center justify-center gap-2 transition-all ${isRunning ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-900 hover:bg-white'}`}>
+                                <button onClick={handleToggleTimer} className={`flex-1 py-4 rounded font-bold flex items-center justify-center gap-2 transition-all ${isRunning ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-900 hover:bg-white'}`}>
                                     {isRunning ? <><Icons.Pause size={18} /> {t('pause')}</> : <><Icons.Play size={18} /> {t('start')}</>}
                                 </button>
                                 <button onClick={handleComplete} className="py-4 md:py-0 px-8 border border-slate-700 bg-slate-800/50 hover:bg-green-900/20 hover:border-green-800 hover:text-green-500 rounded text-slate-400 transition-colors flex justify-center items-center"><Icons.CheckCircle size={24} /></button>
@@ -1082,15 +1165,29 @@
         }
 
         function GoalEditor({ goal, t, onSave, onDelete, onClose }) { 
-            const [formData, setFormData] = useState({...goal}); 
-            const [linkedStr, setLinkedStr] = useState(goal.linked_systems ? goal.linked_systems.map(s => s.text || s).join(', ') : ''); 
+            const [formData, setFormData] = useState({
+                ...goal, 
+                linked_systems: goal.linked_systems || []
+            }); 
+            
+            const handleListChange = (index, value) => { 
+                const newList = [...formData.linked_systems]; 
+                if (!newList[index]) newList[index] = {};
+                newList[index].text = value; 
+                setFormData(prev => ({...prev, linked_systems: newList})); 
+            };
+            
+            const addListItem = () => setFormData(prev => ({...prev, linked_systems: [...prev.linked_systems, { text: '' }]}));
+            const removeListItem = (index) => setFormData(prev => ({ ...prev, linked_systems: prev.linked_systems.filter((_, i) => i !== index) }));
             
             const handleSave = () => { 
                 if (!formData.title || formData.title.trim() === '') { alert("Please enter a goal title."); return; }
-                const systems = linkedStr.split(',').map(s => s.trim()).filter(s => s.length > 0).map(s => { 
-                    try { return { text: JSON.parse(s).text || s }; } catch { return { text: s.replace(/^"|"$/g, '') }; }
-                });
-                onSave({ ...formData, linked_systems: systems }); 
+                const cleanedForm = {
+                    ...formData,
+                    linked_systems: formData.linked_systems.filter(item => item.text && item.text.trim() !== ''),
+                    title: formData.title.trim()
+                };
+                onSave(cleanedForm); 
             }; 
             
             return (
@@ -1110,8 +1207,20 @@
                                 <input value={formData.timeline} onChange={e => setFormData({...formData, timeline: e.target.value})} className="w-full p-2 rounded bg-slate-800 border border-slate-700" placeholder="e.g. 6 Months" />
                             </div>
                             <div>
-                                <label className="block text-xs uppercase text-slate-500 mb-1">Linked Systems (comma separated)</label>
-                                <textarea rows="3" value={linkedStr} onChange={e => setLinkedStr(e.target.value)} className="w-full p-2 rounded bg-slate-800 resize-none border border-slate-700" placeholder="Morning Movement, German Practice..." />
+                                <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between items-center">
+                                    <span>Linked Systems</span>
+                                    <button type="button" onClick={addListItem} className="text-green-500 font-bold text-[10px] hover:text-green-400">+ ADD</button>
+                                </label>
+                                <div className="space-y-2">
+                                    {formData.linked_systems.map((system, index) => (
+                                        <div key={index} className="flex gap-2 items-center">
+                                            <input value={system.text || ''} onChange={e => handleListChange(index, e.target.value)} className="flex-1 p-2 rounded text-sm bg-slate-800 border border-slate-700" placeholder={`System ${index + 1}`}/>
+                                            <button type="button" onClick={() => removeListItem(index)} className="text-red-500 hover:text-red-400">
+                                                <Icons.X size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                         <div className="p-4 border-t border-slate-700 bg-slate-850 flex justify-between">
