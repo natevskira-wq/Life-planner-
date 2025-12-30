@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Identity Architecture (Live)</title>
+    <title>Identity Architecture (Live + Enhanced Editor)</title>
     
     <!-- 1. Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -42,11 +42,11 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- CREDENTIALS INJECTED ---
+        // --- SUPABASE CONFIGURATION ---
         const SUPABASE_URL = 'https://syrhuxxryctrzjdzexnx.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_f26IxnkhOy0ckfJ7hFHCrA_NcSnN0Al';
-
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
         const { useState, useEffect, useMemo } = React;
 
         // --- ICONS ---
@@ -91,16 +91,12 @@
             }, []);
 
             const fetchData = async () => {
-                // 1. Tasks
-                const { data: tasksData, error: taskError } = await supabase.from('identity_tasks').select('*').order('start_time', { ascending: true });
+                const { data: tasksData } = await supabase.from('identity_tasks').select('*').order('start_time', { ascending: true });
                 if (tasksData) setTasks(tasksData);
-                if (taskError) console.error("Error fetching tasks:", taskError);
 
-                // 2. Goals
                 const { data: goalsData } = await supabase.from('identity_goals').select('*');
                 if (goalsData) setGoals(goalsData);
 
-                // 3. History
                 const { data: historyData } = await supabase.from('identity_history').select('*');
                 if (historyData) {
                     const histObj = {};
@@ -109,7 +105,6 @@
                 }
             };
 
-            // --- CALCULATE & SAVE SCORE ---
             const updateDailyScore = async (currentTasks) => {
                 const today = getTodayString();
                 const completed = currentTasks.filter(t => t.status === 'completed').length;
@@ -120,11 +115,12 @@
                 await supabase.from('identity_history').upsert({ date: today, score: score });
             };
 
-            // --- CRUD HANDLERS (TASKS) ---
+            // --- CRUD HANDLERS ---
             const handleSaveTask = async (task) => {
+                // Ensure data maps to DB Columns (Snake Case)
                 const payload = {
                     title: task.title,
-                    start_time: task.start_time,
+                    start_time: task.start_time, // Form uses snake_case now to match
                     end_time: task.end_time,
                     instructions: task.instructions,
                     rules: task.rules,
@@ -166,7 +162,6 @@
                 if (status === 'completed') updateDailyScore(updatedTasks);
             };
 
-            // --- CRUD HANDLERS (GOALS) ---
             const handleSaveGoal = async (goal) => {
                 const payload = {
                     title: goal.title,
@@ -208,7 +203,7 @@
                                 isManaging={isManaging}
                                 onToggleManage={() => setIsManaging(!isManaging)}
                                 onEdit={(task) => setEditingTask(task)}
-                                onNew={() => setEditingTask({ id: 'new', title: '', startTime: '', endTime: '', status: 'idle', instructions: [], rules: [], mediaType: 'image', mediaUrl: '' })}
+                                onNew={() => setEditingTask({ id: 'new', title: '', start_time: '', end_time: '', status: 'idle', instructions: [], rules: [], media_type: 'image', media_url: '', media_label: '' })}
                             />
                         )}
                         {activeTab === 'progress' && <ProgressView history={history} />}
@@ -237,11 +232,11 @@
             );
         }
 
-        // --- SUB-COMPONENTS ---
-        
+        // --- SUB COMPONENTS ---
+
         function DailyView({ tasks, onSelectTask, isManaging, onToggleManage, onEdit, onNew }) {
             const today = new Date();
-            const sortedTasks = [...tasks].sort((a, b) => a.start_time.localeCompare(b.start_time));
+            const sortedTasks = [...tasks].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
             
             return (
                 <div className="space-y-8 animate-[fadeIn_0.5s_ease-out]">
@@ -250,7 +245,7 @@
                             {today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                         </h2>
                         <h1 className="text-lg md:text-xl font-bold text-slate-100 mt-1 leading-tight">
-                            {isManaging ? "You win this year by becoming reliable, healthy, and financially independent." : "Today I win when I complete the system."}
+                            {isManaging ? "Architect Mode: Design your system." : "Today I win if I complete the system."}
                         </h1>
                     </header>
 
@@ -386,6 +381,7 @@
                             </div>
                             <div className="aspect-video bg-slate-900 border border-slate-800 rounded flex items-center justify-center relative overflow-hidden">
                                 {renderMedia()}
+                                {!task.media_url && <div className="absolute inset-0 flex items-center justify-center flex-col gap-2 pointer-events-none"><span className="text-xs font-mono uppercase text-slate-600">{task.media_label}</span></div>}
                             </div>
                         </div>
                         <div className="p-6 border-t border-slate-800 bg-slate-900 pb-8 md:pb-6">
@@ -400,13 +396,13 @@
             );
         }
 
-        // --- EDITORS ---
-
+        // --- TASK EDITOR (ENHANCED UI + SUPABASE BINDING) ---
         function TaskEditor({ task, onSave, onDelete, onClose }) {
+            // We map the Supabase column names to the form state
             const [formData, setFormData] = useState({
                 id: task.id,
                 title: task.title,
-                start_time: task.start_time || '',
+                start_time: task.start_time || '', 
                 end_time: task.end_time || '',
                 instructions: task.instructions || [],
                 rules: task.rules || [],
@@ -414,7 +410,7 @@
                 media_url: task.media_url || '',
                 media_label: task.media_label || ''
             });
-
+            
             const handleChange = (f, v) => setFormData(prev => ({...prev, [f]: v}));
             
             const handleListChange = (field, idx, val) => {
@@ -435,19 +431,25 @@
                         <div className="p-4 border-b border-slate-700 flex justify-between items-center"><h2 className="font-bold text-slate-100">{task.id === 'new' ? 'Create Block' : 'Edit Block'}</h2><button onClick={onClose} className="text-slate-500 hover:text-white"><Icons.X size={20} /></button></div>
                         <div className="flex-1 overflow-y-auto p-6 space-y-6">
                             <div className="space-y-4">
-                                <div><label className="block text-xs uppercase text-slate-500 mb-1">Title</label><input value={formData.title} onChange={e => handleChange('title', e.target.value)} className="w-full p-2 rounded" /></div>
+                                <div><label className="block text-xs uppercase text-slate-500 mb-1">Title</label><input value={formData.title} onChange={e => handleChange('title', e.target.value)} className="w-full p-2 rounded" placeholder="Habit Name" /></div>
                                 <div className="flex gap-4">
                                     <div className="flex-1"><label className="block text-xs uppercase text-slate-500 mb-1">Start</label><input type="time" value={formData.start_time} onChange={e => handleChange('start_time', e.target.value)} className="w-full p-2 rounded" /></div>
                                     <div className="flex-1"><label className="block text-xs uppercase text-slate-500 mb-1">End</label><input type="time" value={formData.end_time} onChange={e => handleChange('end_time', e.target.value)} className="w-full p-2 rounded" /></div>
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between"><span>Media URL</span></label>
+                                <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between"><span>Media (Image URL or YouTube)</span></label>
                                 <input value={formData.media_url} onChange={e => handleChange('media_url', e.target.value)} className="w-full p-2 rounded text-sm bg-slate-800" placeholder="https://..." />
+                                <input value={formData.media_label} onChange={e => handleChange('media_label', e.target.value)} className="w-full p-2 rounded text-sm bg-slate-800 mt-2" placeholder="Label (e.g. Reference Video)" />
                             </div>
+                            
                             <div>
                                 <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between"><span>Execution Steps</span><button onClick={() => addListItem('instructions')} className="text-green-500 font-bold text-[10px]">+ ADD</button></label>
                                 <div className="space-y-2">{formData.instructions.map((inst, i) => <div key={i} className="flex gap-2"><input value={inst.text} onChange={e => handleListChange('instructions', i, e.target.value)} className="flex-1 p-2 rounded text-sm bg-slate-800" /><button onClick={() => setFormData(p => ({...p, instructions: p.instructions.filter((_, idx) => idx !== i)}))} className="text-red-500"><Icons.X size={16} /></button></div>)}</div>
+                            </div>
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between"><span>Rules</span><button onClick={() => addListItem('rules')} className="text-green-500 font-bold text-[10px]">+ ADD</button></label>
+                                <div className="space-y-2">{formData.rules.map((r, i) => <div key={i} className="flex gap-2"><input value={r} onChange={e => handleListChange('rules', i, e.target.value)} className="flex-1 p-2 rounded text-sm bg-slate-800" /><button onClick={() => setFormData(p => ({...p, rules: p.rules.filter((_, idx) => idx !== i)}))} className="text-red-500"><Icons.X size={16} /></button></div>)}</div>
                             </div>
                         </div>
                         <div className="p-4 border-t border-slate-700 bg-slate-850 flex justify-between">
@@ -459,6 +461,7 @@
             );
         }
 
+        // --- GOAL EDITOR ---
         function GoalEditor({ goal, onSave, onDelete, onClose }) {
             const [formData, setFormData] = useState({...goal});
             const [linkedStr, setLinkedStr] = useState(goal.linked_systems ? goal.linked_systems.join(', ') : '');
