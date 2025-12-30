@@ -2,421 +2,920 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Identity Architecture</title>
     
-    <!-- 1. Tailwind CSS -->
+    <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- 2. React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- 3. Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <!-- 4. Supabase Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: { slate: { 850: '#1e293b', 900: '#0f172a', 950: '#020617' } },
-                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] }
-                }
-            }
-        }
-    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     
+    <!-- Styles -->
     <style>
+        :root { --bg: #020617; --card: #0f172a; --border: #1e293b; --text: #f8fafc; --muted: #64748b; --accent: #f1f5f9; --acc-text: #020617; --success: #22c55e; --danger: #ef4444; --warn: #eab308; }
+        [data-theme="light"] { --bg: #f8fafc; --card: #ffffff; --border: #cbd5e1; --text: #0f172a; --muted: #64748b; --accent: #0f172a; --acc-text: #ffffff; --success: #16a34a; --danger: #dc2626; --warn: #ca8a04; }
+        [data-theme="pure"] { --bg: #000000; --card: #121212; --border: #27272a; --text: #e4e4e7; --muted: #52525b; --accent: #ffffff; --acc-text: #000000; --success: #22c55e; --danger: #ef4444; --warn: #eab308; }
+        
+        body { background-color: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; transition: 0.3s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+        .theme-card { background-color: var(--card); border: 1px solid var(--border); }
+        .theme-btn { background-color: var(--accent); color: var(--acc-text); }
+        ::-webkit-scrollbar { width: 0px; }
+        input, select, textarea { background-color: var(--bg); color: var(--text); border: 1px solid var(--border); }
+        input:focus { outline: none; border-color: var(--muted); }
+        .strike-through { text-decoration: line-through; opacity: 0.5; }
+        
+        /* Dynamic Classes for Theme Support */
+        .bg-theme-card { background-color: var(--card); }
+        .bg-theme-bg { background-color: var(--bg); }
+        .border-theme { border-color: var(--border); }
+        .text-theme { color: var(--text); }
+        .text-muted-theme { color: var(--muted); }
+
+        /* Chart Animations */
+        .chart-point { transition: cy 0.5s ease, cx 0.5s ease; }
+        .chart-line { transition: d 0.5s ease; }
+        
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        
+        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-        body { background-color: #020617; }
-        input, textarea, select { background-color: #1e293b; color: #e2e8f0; border: 1px solid #334155; outline: none; }
-        input:focus, textarea:focus { border-color: #64748b; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- SUPABASE CONFIGURATION ---
+        // --- TRANSLATIONS ---
+        const LANG = {
+            en: { system: "System", truth: "Truth", goals: "Direction", settings: "Settings", today_win: "Today I win if I complete the system.", architect: "Architect Mode", unlock: "Manage System", locked: "System Sealed", habits: "Habits", score: "Score", save: "Save Data", restore: "Restore Data", steps: "Execution Steps", rules: "Rules", media: "References", timer: "Timer", start: "Start", pause: "Pause", complete: "Complete", fail: "Fail", new_block: "New Habit", edit_block: "Edit Habit", title: "Title", theme: "Appearance", language: "Language", backup: "Data Backup", schedule: "Schedule", reward: "Reward (Optional)", punishment: "Punishment (Optional)", rewards: "Rewards", punishments: "Punishments", seal_contract: "Seal Iron Contract", break_contract: "Break Contract", seal_desc: "Lock editing for X days.", days: "Days", reset_day: "Reset Today", week: "Week", month: "Month", shame_phrases: ["I am breaking my promise because I am weak.", "I value comfort over my future."] },
+            ar: { system: "النظام", truth: "الحقيقة", goals: "الوجهة", settings: "الإعدادات", today_win: "أنتصر اليوم إذا أتممت النظام.", architect: "وضع المهندس", unlock: "تعديل النظام", locked: "النظام مغلق", habits: "العادات", score: "النتيجة", save: "حفظ", restore: "استرجاع", steps: "الخطوات", rules: "القواعد", media: "المراجع", timer: "المؤقت", start: "بدء", pause: "إيقاف", complete: "تم", fail: "فشل", new_block: "عادة جديدة", edit_block: "تعديل", title: "العنوان", theme: "المظهر", language: "اللغة", backup: "النسخ الاحتياطي", schedule: "الجدول", reward: "المكافأة", punishment: "العقوبة", rewards: "المكافآت", punishments: "العقوبات", seal_contract: "ختم العقد", break_contract: "كسر العقد", seal_desc: "قفل التعديل لعدة أيام.", days: "أيام", reset_day: "إعادة ضبط اليوم", week: "أسبوع", month: "شهر", shame_phrases: ["أنا أكسر وعدي لنفسي لأني ضعيف.", "راحتي المؤقتة أهم من مستقبلي."] },
+            de: { system: "System", truth: "Wahrheit", goals: "Ziele", settings: "Einstellungen", today_win: "Heute gewinne ich.", architect: "Architekt", unlock: "Verwalten", locked: "Versiegelt", habits: "Gewohnheiten", score: "Ergebnis", save: "Speichern", restore: "Wiederherstellen", steps: "Schritte", rules: "Regeln", media: "Medien", timer: "Timer", start: "Start", pause: "Pause", complete: "Fertig", fail: "Fehlschlag", new_block: "Neu", edit_block: "Bearbeiten", title: "Titel", theme: "Aussehen", language: "Sprache", backup: "Backup", schedule: "Zeitplan", reward: "Belohnung", punishment: "Strafe", rewards: "Belohnungen", punishments: "Strafen", seal_contract: "Vertrag", break_contract: "Brechen", seal_desc: "Bearbeitung sperren.", days: "Tage", reset_day: "Reset", week: "Woche", month: "Monat", shame_phrases: ["Ich breche mein Versprechen.", "Komfort ist mir wichtiger."] }
+        };
+
+        const DAYS_MAP = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        // --- SETUP ---
         const SUPABASE_URL = 'https://syrhuxxryctrzjdzexnx.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_f26IxnkhOy0ckfJ7hFHCrA_NcSnN0Al';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        function getOrSetLocal(key, generator) {
+            let val = localStorage.getItem(key);
+            if (!val) { val = generator(); localStorage.setItem(key, val); }
+            return val;
+        }
+        const SESSION_ID = getOrSetLocal('identity_session_id', () => crypto.randomUUID());
+        const ENCRYPTION_KEY = getOrSetLocal('identity_encryption_key', () => {
+            const a = new Uint8Array(32); window.crypto.getRandomValues(a);
+            return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+        });
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { 
+            global: { headers: { 
+                'x-session-id': SESSION_ID,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+            } } 
+        });
 
-        const { useState, useEffect, useMemo } = React;
+        // --- CRYPTO HELPERS ---
+        const encrypt = (t) => { 
+            try { 
+                if (t === null || t === undefined || t === '') return '';
+                if (typeof t !== 'string') t = String(t);
+                return CryptoJS.AES.encrypt(t, ENCRYPTION_KEY).toString();
+            } catch (e) { return ''; } 
+        };
+        
+        const encryptList = (list) => { 
+            try { 
+                if (!list || !Array.isArray(list)) return [];
+                return list.map(item => {
+                    if (typeof item === 'object' && item !== null) {
+                        return { text: item.text || item.text || '', type: item.type || '', url: item.url || '', label: item.label || '' };
+                    }
+                    return { text: item || '' };
+                });
+            } catch (e) { return []; } 
+        };
+        
+        const decrypt = (c) => { 
+            try { 
+                if (!c || typeof c !== 'string') return c || '';
+                const b = CryptoJS.AES.decrypt(c, ENCRYPTION_KEY); 
+                return b.toString(CryptoJS.enc.Utf8) || '';
+            } catch (e) { return ''; } 
+        };
+        
+        const decryptList = (c) => { 
+            try { 
+                if (!c) return [];
+                if (Array.isArray(c)) return c.map(item => ({ 
+                    text: item.text || item || '', 
+                    type: item.type || '', 
+                    url: item.url || '', 
+                    label: item.label || '' 
+                }));
+                if (typeof c !== 'string' || c === '') return [];
+                if (!c.startsWith("U2F")) {
+                    try {
+                        const parsed = JSON.parse(c);
+                        return Array.isArray(parsed) ? parsed.map(item => ({ 
+                            text: item.text || item || '', 
+                            type: item.type || '', 
+                            url: item.url || '', 
+                            label: item.label || '' 
+                        })) : [];
+                    } catch { return []; }
+                }
+                const decrypted = decrypt(c);
+                const parsed = JSON.parse(decrypted);
+                return Array.isArray(parsed) ? parsed.map(item => ({ 
+                    text: item.text || item || '', 
+                    type: item.type || '', 
+                    url: item.url || '', 
+                    label: item.label || '' 
+                })) : [];
+            } catch (e) { return []; } 
+        };
+        
+        const getTodayString = () => new Date().toLocaleDateString('en-CA');
 
+        const { useState, useEffect, useRef, useMemo } = React;
+        
         // --- ICONS ---
         const Icon = ({ path, size = 20, className = "", onClick }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} onClick={onClick}>{path}</svg>
         );
+        
         const Icons = {
-            Layout: (p) => <Icon {...p} path={<><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></>} />,
-            BarChart2: (p) => <Icon {...p} path={<><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></>} />,
-            Target: (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></>} />,
-            Play: (p) => <Icon {...p} path={<polygon points="5 3 19 12 5 21 5 3"></polygon>} />,
-            Pause: (p) => <Icon {...p} path={<><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></>} />,
-            CheckCircle: (p) => <Icon {...p} path={<><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></>} />,
-            Lock: (p) => <Icon {...p} path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></>} />,
-            Unlock: (p) => <Icon {...p} path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></>} />,
-            ChevronRight: (p) => <Icon {...p} path={<polyline points="9 18 15 12 9 6"></polyline>} />,
-            Video: (p) => <Icon {...p} path={<><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></>} />,
-            Image: (p) => <Icon {...p} path={<><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></>} />,
-            Plus: (p) => <Icon {...p} path={<><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></>} />,
-            Edit: (p) => <Icon {...p} path={<><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></>} />,
-            Trash: (p) => <Icon {...p} path={<><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></>} />,
-            X: (p) => <Icon {...p} path={<><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></>} />
+            Layout: (p) => <Icon {...p} path={<><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></>} />,
+            BarChart2: (p) => <Icon {...p} path={<><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>} />,
+            Target: (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></>} />,
+            Settings: (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></>} />,
+            Play: (p) => <Icon {...p} path={<polygon points="5 3 19 12 5 21 5 3"/>} />,
+            Pause: (p) => <Icon {...p} path={<><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></>} />,
+            CheckCircle: (p) => <Icon {...p} path={<><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>} />,
+            Check: (p) => <Icon {...p} path={<><polyline points="20 6 9 17 4 12"/></>} />,
+            Plus: (p) => <Icon {...p} path={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>} />,
+            Edit: (p) => <Icon {...p} path={<><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>} />,
+            Trash: (p) => <Icon {...p} path={<><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>} />,
+            X: (p) => <Icon {...p} path={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} />,
+            Download: (p) => <Icon {...p} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>} />,
+            Upload: (p) => <Icon {...p} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>} />,
+            Lock: (p) => <Icon {...p} path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>} />,
+            Unlock: (p) => <Icon {...p} path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>} />,
+            ChevronRight: (p) => <Icon {...p} path={<polyline points="9 18 15 12 9 6"/>} />,
+            Alert: (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>} />,
+            Video: (p) => <Icon {...p} path={<><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></>} />,
+            Image: (p) => <Icon {...p} path={<><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></>} />
         };
 
-        const getTodayString = () => new Date().toLocaleDateString('en-CA');
-
-        // --- MAIN APP ---
+        // --- ROOT ---
         function App() {
             const [activeTab, setActiveTab] = useState('daily');
             const [tasks, setTasks] = useState([]);
             const [goals, setGoals] = useState([]);
-            const [history, setHistory] = useState({});
+            const [history, setHistory] = useState([]);
+            const [counts, setCounts] = useState({});
+            const [isLoading, setIsLoading] = useState(true);
             
             const [selectedTaskId, setSelectedTaskId] = useState(null);
             const [isManaging, setIsManaging] = useState(false);
             const [editingTask, setEditingTask] = useState(null);
             const [editingGoal, setEditingGoal] = useState(null);
+            const [lockDate, setLockDate] = useState(null);
+            
+            const [theme, setTheme] = useState(localStorage.getItem('identity_theme') || 'midnight');
+            const [lang, setLang] = useState(localStorage.getItem('identity_lang') || 'en');
+            const t = (k) => LANG[lang][k] || k;
+            
+            const isLocked = useMemo(() => lockDate && new Date(lockDate) > new Date(), [lockDate]);
 
             useEffect(() => {
-                fetchData();
-            }, []);
+                document.documentElement.setAttribute('data-theme', theme);
+                document.dir = lang === 'ar' ? 'rtl' : 'ltr';
+                localStorage.setItem('identity_theme', theme);
+                localStorage.setItem('identity_lang', lang);
+            }, [theme, lang]);
+
+            useEffect(() => { fetchData(); }, []);
 
             const fetchData = async () => {
-                const { data: tasksData } = await supabase.from('identity_tasks').select('*').order('start_time', { ascending: true });
-                if (tasksData) {
-                    // Normalization: Ensure media_items exists even for old tasks
-                    const normalizedTasks = tasksData.map(t => ({
-                        ...t,
-                        media_items: t.media_items || (t.media_url ? [{type: t.media_type, url: t.media_url, label: t.media_label}] : [])
-                    }));
-                    setTasks(normalizedTasks);
-                }
+                setIsLoading(true);
+                try {
+                    const today = getTodayString();
+                    
+                    const { data: sData, error: sError } = await supabase.from('identity_settings').select('*').eq('session_id', SESSION_ID).maybeSingle();
+                    if (sError) {
+                        const { error: createError } = await supabase.from('identity_settings').upsert({ session_id: SESSION_ID, locked_until: null });
+                    } else if (sData) {
+                        setLockDate(sData.locked_until);
+                    }
 
-                const { data: goalsData } = await supabase.from('identity_goals').select('*');
-                if (goalsData) setGoals(goalsData);
+                    const { data: tData, error: tError } = await supabase.from('identity_tasks').select('*').eq('session_id', SESSION_ID).order('start_time', { ascending: true });
+                    
+                    if (tData) {
+                        const tasksToUpdate = [];
+                        const processed = tData.map(task => {
+                            if (task.last_active_date !== today) {
+                                tasksToUpdate.push({ id: task.id, status: 'idle', consequence_status: 'none', last_active_date: today });
+                                return { ...task, status: 'idle', consequence_status: 'none', last_active_date: today };
+                            }
+                            return task;
+                        });
+                        
+                        if (tasksToUpdate.length > 0) supabase.from('identity_tasks').upsert(tasksToUpdate).then();
+                        
+                        setTasks(processed.map(x => ({
+                            ...x, 
+                            title: decrypt(x.title) || '',
+                            instructions: decryptList(x.instructions) || [],
+                            rules: decryptList(x.rules) || [],
+                            media_items: decryptList(x.media_items) || [],
+                            reward_text: decrypt(x.reward_text) || '',
+                            punishment_text: decrypt(x.punishment_text) || ''
+                        })));
+                    }
 
-                const { data: historyData } = await supabase.from('identity_history').select('*');
-                if (historyData) {
-                    const histObj = {};
-                    historyData.forEach(row => histObj[row.date] = row.score);
-                    setHistory(histObj);
+                    const { data: gData } = await supabase.from('identity_goals').select('*').eq('session_id', SESSION_ID);
+                    if (gData) {
+                        setGoals(gData.map(g => ({ 
+                            ...g, 
+                            title: decrypt(g.title) || '',
+                            timeline: decrypt(g.timeline) || '',
+                            linked_systems: decryptList(g.linked_systems) || []
+                        })));
+                    }
+
+                    const { data: hData } = await supabase.from('identity_history').select('*').eq('session_id', SESSION_ID);
+                    if (hData) setHistory(hData);
+
+                    const { data: cData } = await supabase.from('identity_counts').select('*').eq('session_id', SESSION_ID);
+                    if (cData) {
+                        const cObj = {}; 
+                        cData.forEach(c => cObj[c.date] = { r_earn: c.rewards_earned, r_take: c.rewards_count, p_inc: c.punishments_incurred, p_pay: c.punishments_count });
+                        setCounts(cObj);
+                    }
+                } catch (error) {
+                    console.error("Fetch error:", error);
+                } finally {
+                    setIsLoading(false);
                 }
             };
 
-            const updateDailyScore = async (currentTasks) => {
-                const today = getTodayString();
+            const calculateScore = (currentTasks) => {
+                if (!currentTasks || currentTasks.length === 0) return 0;
                 const completed = currentTasks.filter(t => t.status === 'completed').length;
-                const total = currentTasks.length;
-                const score = total === 0 ? 0 : Math.round((completed / total) * 100);
+                return Math.round((completed / currentTasks.length) * 100);
+            };
 
-                setHistory(prev => ({ ...prev, [today]: score }));
-                await supabase.from('identity_history').upsert({ date: today, score: score });
+            const updateStats = async (currentTasks) => {
+                try {
+                    const today = getTodayString();
+                    const score = calculateScore(currentTasks);
+                    
+                    await supabase.from('identity_history').upsert({ date: today, score, session_id: SESSION_ID });
+                    
+                    setHistory(prev => {
+                        const existIndex = prev.findIndex(h => h.date === today);
+                        if (existIndex > -1) { const updated = [...prev]; updated[existIndex].score = score; return updated; }
+                        return [...prev, { date: today, score }];
+                    });
+
+                    const r_earn = currentTasks.filter(t => t.status === 'completed' && t.reward_text).length;
+                    const r_take = currentTasks.filter(t => t.consequence_status === 'reward_taken').length;
+                    const p_inc = currentTasks.filter(t => t.status === 'failed' && t.punishment_text).length;
+                    const p_pay = currentTasks.filter(t => t.consequence_status === 'punishment_paid').length;
+                    
+                    await supabase.from('identity_counts').upsert({ date: today, session_id: SESSION_ID, rewards_earned: r_earn, rewards_count: r_take, punishments_incurred: p_inc, punishments_count: p_pay });
+                    
+                    setCounts(prev => ({ ...prev, [today]: { r_earn, r_take, p_inc, p_pay } }));
+                } catch (error) { console.error("Update stats error:", error); }
             };
 
             const handleSaveTask = async (task) => {
-                const payload = {
-                    title: task.title,
-                    start_time: task.start_time,
-                    end_time: task.end_time,
-                    instructions: task.instructions,
-                    rules: task.rules,
-                    media_items: task.media_items, // Saving the array now
-                    status: task.status || 'idle'
-                };
-
-                let updatedTasks = [...tasks];
-
-                if (task.id === 'new') {
-                    const { data } = await supabase.from('identity_tasks').insert([payload]).select();
-                    if (data) updatedTasks = [...tasks, data[0]];
-                } else {
-                    const { data } = await supabase.from('identity_tasks').update(payload).eq('id', task.id).select();
-                    if (data) updatedTasks = tasks.map(t => t.id === task.id ? data[0] : t);
-                }
-
-                setTasks(updatedTasks);
-                updateDailyScore(updatedTasks);
-                setEditingTask(null);
+                try {
+                    const payload = { 
+                        session_id: SESSION_ID, 
+                        start_time: task.start_time || '', 
+                        end_time: task.end_time || '', 
+                        status: task.status || 'idle', 
+                        consequence_status: task.consequence_status || 'none', 
+                        schedule_days: task.schedule_days || [0,1,2,3,4,5,6], 
+                        last_active_date: getTodayString(), 
+                        title: encrypt(task.title || ''), 
+                        instructions: encryptList(task.instructions || []),
+                        rules: encryptList(task.rules || []),
+                        media_items: encryptList(task.media_items || []),
+                        reward_text: encrypt(task.reward_text || ''), 
+                        punishment_text: encrypt(task.punishment_text || '') 
+                    };
+                    
+                    let newTasks = [...tasks];
+                    
+                    if (task.id === 'new') { 
+                        const { data, error } = await supabase.from('identity_tasks').insert([payload]).select();
+                        if (!error && data && data[0]) {
+                            const newTask = { ...data[0], ...task };
+                            newTasks = [...tasks, newTask];
+                            setTasks(newTasks);
+                        }
+                    } else { 
+                        delete payload.session_id;
+                        const { error } = await supabase.from('identity_tasks').update(payload).eq('id', task.id);
+                        if (!error) newTasks = tasks.map(t => t.id === task.id ? task : t);
+                        setTasks(newTasks);
+                    }
+                    
+                    await updateStats(newTasks);
+                    setEditingTask(null);
+                } catch (error) { console.error("Save task error:", error); }
             };
 
             const handleDeleteTask = async (id) => {
-                if (confirm("Delete this habit block?")) {
-                    await supabase.from('identity_tasks').delete().eq('id', id);
-                    const updatedTasks = tasks.filter(t => t.id !== id);
-                    setTasks(updatedTasks);
-                    updateDailyScore(updatedTasks);
-                    setEditingTask(null);
-                }
+                if (!confirm("Delete this habit?")) return; 
+                try {
+                    const { error } = await supabase.from('identity_tasks').delete().eq('id', id);
+                    if (!error) {
+                        const n = tasks.filter(t => t.id !== id); 
+                        setTasks(n); 
+                        await updateStats(n); 
+                        setEditingTask(null);
+                    }
+                } catch (error) { console.error("Delete task error:", error); }
             };
 
-            const handleStatusUpdate = async (id, status) => {
-                const updatedTasks = tasks.map(t => t.id === id ? { ...t, status } : t);
-                setTasks(updatedTasks);
-                await supabase.from('identity_tasks').update({ status }).eq('id', id);
-                if (status === 'completed') updateDailyScore(updatedTasks);
+            const handleStateChange = async (id, type) => {
+                try {
+                    let updates = {}; 
+                    if (type === 'complete') updates = { status: 'completed', consequence_status: 'reward_pending' }; 
+                    else if (type === 'fail') updates = { status: 'failed', consequence_status: 'punishment_pending' }; 
+                    else if (type === 'reset') updates = { status: 'idle', consequence_status: 'none' }; 
+                    else if (type === 'claim_reward') updates = { consequence_status: 'reward_taken' }; 
+                    else if (type === 'pay_punishment') updates = { consequence_status: 'punishment_paid' };
+                    
+                    const newTasks = tasks.map(t => t.id === id ? { ...t, ...updates } : t); 
+                    setTasks(newTasks); 
+                    
+                    await supabase.from('identity_tasks').update(updates).eq('id', id);
+                    await updateStats(newTasks);
+                } catch (error) { console.error("State change error:", error); }
             };
 
-            const handleSaveGoal = async (goal) => {
-                const payload = {
-                    title: goal.title,
-                    timeline: goal.timeline,
-                    linked_systems: goal.linked_systems
-                };
-
-                if (goal.id === 'new') {
-                    const { data } = await supabase.from('identity_goals').insert([payload]).select();
-                    if (data) setGoals([...goals, data[0]]);
-                } else {
-                    const { data } = await supabase.from('identity_goals').update(payload).eq('id', goal.id).select();
-                    if (data) setGoals(goals.map(g => g.id === goal.id ? data[0] : g));
-                }
-                setEditingGoal(null);
-            };
-
-            const handleDeleteGoal = async (id) => {
-                if (confirm("Delete this goal?")) {
-                    await supabase.from('identity_goals').delete().eq('id', id);
-                    setGoals(goals.filter(g => g.id !== id));
+            const handleGoalUpdate = async (goal, isDelete = false) => {
+                try {
+                    if (isDelete) { 
+                        if (!confirm("Delete goal?")) return; 
+                        const { error } = await supabase.from('identity_goals').delete().eq('id', goal.id);
+                        if (!error) setGoals(goals.filter(g => g.id !== goal.id)); 
+                        setEditingGoal(null); 
+                        return; 
+                    }
+                    
+                    const payload = { 
+                        session_id: SESSION_ID, 
+                        is_completed: goal.is_completed || false, 
+                        title: encrypt(goal.title || ''), 
+                        timeline: encrypt(goal.timeline || ''), 
+                        linked_systems: encryptList(goal.linked_systems || []) 
+                    };
+                    
+                    if (goal.id === 'new') { 
+                        const { data, error } = await supabase.from('identity_goals').insert([payload]).select(); 
+                        if (!error && data && data[0]) setGoals([...goals, { ...data[0], ...goal }]); 
+                    } else { 
+                        delete payload.session_id; 
+                        const { error } = await supabase.from('identity_goals').update(payload).eq('id', goal.id);
+                        if (!error) setGoals(goals.map(g => g.id === goal.id ? goal : g)); 
+                    }
                     setEditingGoal(null);
-                }
+                } catch (error) { console.error("Goal update error:", error); }
+            };
+
+            const handleSeal = async (days) => { 
+                if(!confirm(`Lock system for ${days} days?`)) return; 
+                try {
+                    const date = new Date(); date.setDate(date.getDate() + days); 
+                    await supabase.from('identity_settings').upsert({ session_id: SESSION_ID, locked_until: date.toISOString() });
+                    setLockDate(date.toISOString()); 
+                } catch (error) { console.error("Seal error:", error); }
+            };
+            
+            const handleBreakLock = async () => { 
+                const phrase = LANG[lang].shame_phrases[Math.floor(Math.random() * LANG[lang].shame_phrases.length)]; 
+                const input = prompt(`${t('break_contract')}\n\nType exactly:\n"${phrase}"`); 
+                if (input === phrase) { 
+                    await supabase.from('identity_settings').upsert({ session_id: SESSION_ID, locked_until: null });
+                    setLockDate(null); 
+                } else { alert("Incorrect."); } 
+            };
+            
+            const handleResetDay = async () => { 
+                if(!confirm("Reset ALL progress for today?")) return; 
+                try {
+                    const today = getTodayString(); 
+                    const resetTasks = tasks.map(t => ({ ...t, status: 'idle', consequence_status: 'none', last_active_date: today })); 
+                    setTasks(resetTasks); 
+                    await supabase.from('identity_tasks').update({ status: 'idle', consequence_status: 'none', last_active_date: today }).eq('session_id', SESSION_ID);
+                    await updateStats(resetTasks); 
+                } catch (error) { console.error("Reset day error:", error); }
             };
 
             return (
-                <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-slate-700 pb-20 md:pb-0">
-                    <nav className="fixed bottom-0 w-full bg-slate-900 border-t border-slate-800 md:top-0 md:bottom-auto z-50 flex justify-around p-4 md:justify-center md:gap-12 shadow-lg">
-                        <NavButton icon={Icons.Layout} label="System" active={activeTab === 'daily'} onClick={() => setActiveTab('daily')} />
-                        <NavButton icon={Icons.BarChart2} label="Truth" active={activeTab === 'progress'} onClick={() => setActiveTab('progress')} />
-                        <NavButton icon={Icons.Target} label="Direction" active={activeTab === 'goals'} onClick={() => setActiveTab('goals')} />
-                    </nav>
-
-                    <main className="md:pt-24 max-w-2xl mx-auto px-4">
+                <div className="flex flex-col h-[100dvh]">
+                    {isLoading && (
+                        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
+                            <div className="text-white text-lg">Loading...</div>
+                        </div>
+                    )}
+                    
+                    <main className="flex-1 overflow-y-auto pb-24 md:pb-0 md:pt-24 px-4 py-6 w-full max-w-2xl mx-auto">
                         {activeTab === 'daily' && (
                             <DailyView 
                                 tasks={tasks} 
-                                onSelectTask={(id) => !isManaging && setSelectedTaskId(id)}
-                                isManaging={isManaging}
-                                onToggleManage={() => setIsManaging(!isManaging)}
-                                onEdit={(task) => setEditingTask(task)}
-                                onNew={() => setEditingTask({ id: 'new', title: '', start_time: '', end_time: '', status: 'idle', instructions: [], rules: [], media_items: [] })}
+                                t={t} 
+                                onSelectTask={id => setSelectedTaskId(id)} 
+                                isManaging={isManaging} 
+                                isLocked={isLocked} 
+                                onToggleManage={() => setIsManaging(!isManaging)} 
+                                onEdit={setEditingTask} 
+                                onNew={() => setEditingTask({ id: 'new', title: '', type: 'habit', start_time: '', end_time: '', instructions: [], rules: [], media_items: [], schedule_days: [0,1,2,3,4,5,6], reward_text: '', punishment_text: '' })} 
+                                onStateChange={handleStateChange} 
                             />
                         )}
-                        {activeTab === 'progress' && <ProgressView history={history} />}
+                        {activeTab === 'progress' && <ProgressView history={history} counts={counts} t={t} />}
                         {activeTab === 'goals' && (
                             <GoalsView 
                                 goals={goals} 
-                                isManaging={isManaging}
-                                onToggleManage={() => setIsManaging(!isManaging)}
-                                onEdit={(goal) => setEditingGoal(goal)}
-                                onNew={() => setEditingGoal({ id: 'new', title: '', timeline: '', linkedSystems: [] })}
+                                t={t} 
+                                isManaging={isManaging && !isLocked} 
+                                onToggleManage={() => setIsManaging(!isManaging)} 
+                                onEdit={setEditingGoal} 
+                                onNew={() => setEditingGoal({ id: 'new', title: '', timeline: '', linked_systems: [], is_completed: false })} 
+                                onCheck={(id, val) => handleGoalUpdate({ ...goals.find(g => g.id === id), is_completed: val })} 
                             />
                         )}
+                        {activeTab === 'settings' && (
+                            <SettingsView theme={theme} setTheme={setTheme} lang={lang} setLang={setLang} t={t} isLocked={isLocked} onSeal={handleSeal} onBreak={handleBreakLock} onResetDay={handleResetDay} />
+                        )}
                     </main>
+
+                    <nav className="fixed bottom-0 w-full bg-theme-card border-t border-theme md:top-0 md:bottom-auto z-40 flex justify-around p-3 pb-safe md:justify-center md:gap-12 shadow-2xl transition-colors duration-300">
+                        <NavButton icon={Icons.Layout} label={t('system')} active={activeTab === 'daily'} onClick={() => setActiveTab('daily')} />
+                        <NavButton icon={Icons.BarChart2} label={t('truth')} active={activeTab === 'progress'} onClick={() => setActiveTab('progress')} />
+                        <NavButton icon={Icons.Target} label={t('goals')} active={activeTab === 'goals'} onClick={() => setActiveTab('goals')} />
+                        <NavButton icon={Icons.Settings} label={t('settings')} active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
+                    </nav>
 
                     {selectedTaskId && !isManaging && (
                         <TaskDrawer 
                             task={tasks.find(t => t.id === selectedTaskId)} 
-                            onClose={() => setSelectedTaskId(null)}
-                            onUpdateStatus={(status) => handleStatusUpdate(selectedTaskId, status)}
+                            t={t} 
+                            onClose={() => setSelectedTaskId(null)} 
+                            onStateChange={handleStateChange} 
                         />
                     )}
-
-                    {editingTask && <TaskEditor task={editingTask} onSave={handleSaveTask} onDelete={handleDeleteTask} onClose={() => setEditingTask(null)} />}
-                    {editingGoal && <GoalEditor goal={editingGoal} onSave={handleSaveGoal} onDelete={handleDeleteGoal} onClose={() => setEditingGoal(null)} />}
+                    
+                    {editingTask && <TaskEditor task={editingTask} t={t} onSave={handleSaveTask} onDelete={handleDeleteTask} onClose={() => setEditingTask(null)} />}
+                    {editingGoal && <GoalEditor goal={editingGoal} t={t} onSave={handleGoalUpdate} onDelete={() => handleGoalUpdate(editingGoal, true)} onClose={() => setEditingGoal(null)} />}
                 </div>
             );
         }
 
-        // --- SUB COMPONENTS ---
-
-        function DailyView({ tasks, onSelectTask, isManaging, onToggleManage, onEdit, onNew }) {
-            const today = new Date();
-            const sortedTasks = [...tasks].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+        // --- VIEWS ---
+        function DailyView({ tasks, t, onSelectTask, isManaging, isLocked, onToggleManage, onEdit, onNew, onStateChange }) {
+            const today = new Date(); 
+            const dayIndex = today.getDay();
+            const visibleTasks = tasks.filter(task => isManaging || (task.schedule_days && task.schedule_days.includes(dayIndex))).sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+            const progress = visibleTasks.length > 0 ? Math.round((visibleTasks.filter(t => t.status === 'completed').length / visibleTasks.length) * 100) : 0;
             
+            const handleTaskClick = (id, status) => {
+                if (isManaging) { onEdit(tasks.find(t => t.id === id)); return; }
+                if (status !== 'completed' && status !== 'failed') { onSelectTask(id); }
+            };
+
             return (
                 <div className="space-y-8 animate-[fadeIn_0.5s_ease-out]">
-                    <header className="border-l-2 border-slate-700 pl-4 py-2 mt-8 md:mt-0">
-                        <h2 className="text-slate-500 text-xs md:text-sm uppercase tracking-widest font-mono">
+                    <header className="border-l-2 border-[var(--muted)] pl-4 py-2 mt-8 md:mt-0">
+                        <h2 className="text-[var(--muted)] text-xs md:text-sm uppercase tracking-widest font-mono">
                             {today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                         </h2>
-                        <h1 className="text-lg md:text-xl font-bold text-slate-100 mt-1 leading-tight">
-                            {isManaging ? "Architect Mode: Design your system." : "Today I win if I complete the system."}
+                        <h1 className="text-lg md:text-xl font-bold text-[var(--text)] mt-1 leading-tight">
+                            {isManaging ? t('architect') : t('today_win')}
                         </h1>
+                        {!isManaging && (
+                            <div className="h-1 w-full bg-[var(--border)] mt-3 rounded overflow-hidden">
+                                <div className="h-full bg-[var(--accent)] transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                            </div>
+                        )}
                     </header>
 
                     <div className="space-y-3 relative pb-24">
-                        <div className="absolute left-[3.5rem] top-0 bottom-0 w-px bg-slate-800 -z-10"></div>
-                        {sortedTasks.map((task) => (
-                            <div key={task.id} onClick={() => onSelectTask(task.id)} className={`group flex items-center gap-4 p-4 rounded-lg border transition-all ${isManaging ? 'bg-slate-900 border-slate-700 hover:border-slate-500 cursor-default' : task.status === 'completed' ? 'bg-slate-900/50 border-slate-800 opacity-60 cursor-pointer' : task.status === 'in-progress' ? 'bg-slate-900 border-yellow-700/50 ring-1 ring-yellow-700/20 cursor-pointer' : 'bg-slate-900 border-slate-800 hover:border-slate-600 cursor-pointer active:scale-[0.98]'}`}>
-                                <div className="w-12 text-xs font-mono text-slate-500 text-right flex flex-col gap-1"><span>{task.start_time}</span><span className="opacity-50">{task.end_time}</span></div>
-                                <div className={`w-3 h-3 rounded-full shrink-0 transition-colors duration-500 ${task.status === 'completed' ? 'bg-green-900' : task.status === 'in-progress' ? 'bg-yellow-600 animate-pulse' : 'bg-slate-700'}`}></div>
-                                <div className="flex-1"><h3 className={`font-medium text-sm md:text-base ${task.status === 'completed' && !isManaging ? 'line-through text-slate-500' : 'text-slate-200'}`}>{task.title}</h3></div>
-                                {isManaging ? <button onClick={(e) => { e.stopPropagation(); onEdit(task); }} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded"><Icons.Edit size={16} /></button> : task.status === 'completed' ? <Icons.CheckCircle size={18} className="text-green-800" /> : <Icons.ChevronRight size={18} className="text-slate-700 group-hover:text-slate-400" />}
+                        <div className="absolute left-[3.5rem] top-0 bottom-0 w-px bg-[var(--border)] -z-10"></div>
+                        {visibleTasks.map((task) => (
+                            <div key={task.id} className="group">
+                                <div 
+                                    onClick={() => handleTaskClick(task.id, task.status)} 
+                                    className={`flex items-center gap-4 p-4 rounded-lg border transition-all 
+                                        ${isManaging 
+                                            ? 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)] cursor-default' 
+                                            : task.status === 'completed' 
+                                                ? 'bg-[var(--card)] border-[var(--border)] opacity-60 cursor-default' 
+                                                : task.status === 'failed' 
+                                                    ? 'bg-[var(--card)] border-[var(--danger)] cursor-default' 
+                                                    : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)] cursor-pointer active:scale-[0.98]'}`}
+                                >
+                                    <div className="w-12 text-xs font-mono text-[var(--muted)] text-right flex flex-col gap-1">
+                                        <span>{task.start_time || '--:--'}</span>
+                                        <span className="opacity-50">{task.end_time || '--:--'}</span>
+                                    </div>
+                                    <div className={`w-3 h-3 rounded-full shrink-0 transition-colors duration-500 
+                                        ${task.status === 'completed' ? 'bg-[var(--success)]' : task.status === 'failed' ? 'bg-[var(--danger)]' : 'bg-[var(--border)]'}`}>
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className={`font-medium text-sm md:text-base ${task.status === 'completed' && !isManaging ? 'line-through text-[var(--muted)]' : 'text-[var(--text)]'}`}>
+                                            {task.title || 'Untitled Habit'}
+                                        </h3>
+                                        {task.status === 'failed' && (
+                                            <span className="text-[10px] text-[var(--danger)] font-bold uppercase">FAILED</span>
+                                        )}
+                                    </div>
+                                    {isManaging ? (
+                                        <button onClick={(e) => { e.stopPropagation(); onEdit(task); }} className="p-2 text-[var(--muted)] hover:text-[var(--text)]">
+                                            <Icons.Edit size={16} />
+                                        </button>
+                                    ) : task.status === 'completed' ? (
+                                        <Icons.CheckCircle size={18} className="text-[var(--success)]" />
+                                    ) : task.status === 'failed' ? (
+                                        <Icons.X size={18} className="text-[var(--danger)]" />
+                                    ) : (
+                                        <Icons.ChevronRight size={18} className="text-[var(--border)] group-hover:text-[var(--muted)]" />
+                                    )}
+                                </div>
+                                {/* Punishment Sub-task */}
+                                {task.status === 'failed' && task.punishment_text && (
+                                    <div className="ml-16 mt-2 p-3 bg-[var(--bg)] border border-[var(--danger)] rounded border-dashed flex items-center justify-between">
+                                        <div className="text-xs text-[var(--danger)]">
+                                            <span className="font-bold uppercase">Punishment:</span> {task.punishment_text}
+                                        </div>
+                                        <button 
+                                            onClick={() => onStateChange(task.id, 'pay_punishment')}
+                                            disabled={task.consequence_status === 'punishment_paid'}
+                                            className={`w-5 h-5 rounded border flex items-center justify-center transition-colors 
+                                                ${task.consequence_status === 'punishment_paid' ? 'bg-[var(--danger)] border-[var(--danger)] text-white' : 'border-[var(--danger)] text-transparent hover:bg-red-900/10'}`}
+                                        >
+                                            <Icons.Check size={14} />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ))}
-                        {isManaging && <button onClick={onNew} className="w-full py-4 border-2 border-dashed border-slate-800 rounded-lg text-slate-600 hover:text-slate-400 hover:border-slate-600 flex justify-center items-center gap-2 transition-all"><Icons.Plus size={20} /> <span className="uppercase text-xs font-bold tracking-widest">Add New Block</span></button>}
-                        <div className="text-center pt-8"><button onClick={onToggleManage} className={`text-[10px] font-mono flex items-center justify-center gap-2 px-4 py-2 rounded-full mx-auto transition-colors ${isManaging ? 'text-yellow-500 bg-yellow-900/20' : 'text-slate-600 hover:text-slate-400'}`}>{isManaging ? <><Icons.Unlock size={12} /> SYSTEM UNLOCKED</> : <><Icons.Lock size={12} /> MANAGE SYSTEM</>}</button></div>
+                        
+                        {isManaging && (
+                            <button onClick={onNew} className="w-full py-4 border-2 border-dashed border-[var(--border)] rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--muted)] flex justify-center items-center gap-2 transition-all">
+                                <Icons.Plus size={20} /> <span className="uppercase text-xs font-bold tracking-widest">{t('new_block')}</span>
+                            </button>
+                        )}
+                        
+                        {!isLocked && (
+                            <div className="text-center pt-8">
+                                <button onClick={onToggleManage} className={`text-[10px] font-mono flex items-center justify-center gap-2 px-4 py-2 rounded-full mx-auto transition-colors ${isManaging ? 'text-[var(--warn)] bg-[var(--warn)]/10' : 'text-[var(--muted)] hover:text-[var(--text)]'}`}>
+                                    {isManaging ? <><Icons.Unlock size={12} /> {t('unlock')}</> : <><Icons.Lock size={12} /> {t('architect')}</>}
+                                </button>
+                            </div>
+                        )}
+                        
+                        {isLocked && (
+                            <div className="text-center pt-8">
+                                <span className="text-[10px] font-mono text-[var(--success)] flex items-center justify-center gap-2"><Icons.Lock size={12}/> {t('locked')}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             );
         }
 
-        function ProgressView({ history }) {
-            const [range, setRange] = useState('week'); 
-            const todayStr = getTodayString();
+        function ProgressView({ history, counts, t }) {
+            const [view, setView] = useState('score'); 
+            const [range, setRange] = useState('week');
             
             const chartData = useMemo(() => {
-                const days = range === 'week' ? 7 : range === 'month' ? 30 : 1;
-                const data = [];
-                for (let i = days - 1; i >= 0; i--) {
-                    const d = new Date();
-                    d.setDate(d.getDate() - i);
-                    const dateStr = d.toLocaleDateString('en-CA');
-                    const label = range === 'day' ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'narrow' });
-                    data.push({ 
-                        label, 
-                        score: history[dateStr] || 0,
-                        isToday: dateStr === todayStr
-                    });
-                }
-                return data;
-            }, [range, history, todayStr]);
-
-            const currentScore = history[todayStr] || 0;
+                const days = range === 'week' ? 7 : 30; 
+                const d = []; 
+                const today = new Date();
+                for (let i = days - 1; i >= 0; i--) { 
+                    const date = new Date(); date.setDate(today.getDate() - i); const dateStr = date.toLocaleDateString('en-CA');
+                    const hItem = history.find(h => h.date === dateStr); const cItem = counts[dateStr] || { r_earn: 0, r_take: 0, p_inc: 0, p_pay: 0 };
+                    d.push({ 
+                        label: date.toLocaleDateString('en-US', { weekday: 'narrow' }), 
+                        score: hItem ? hItem.score : 0, 
+                        r_rate: cItem.r_earn > 0 ? Math.round((cItem.r_take / cItem.r_earn) * 100) : 0, 
+                        p_rate: cItem.p_inc > 0 ? Math.round((cItem.p_pay / cItem.p_inc) * 100) : 0 
+                    }); 
+                } 
+                return d; 
+            }, [history, counts, range]);
+            
+            const getData = (d) => view === 'score' ? d.score : (view === 'rewards' ? d.r_rate : d.p_rate);
+            const currentValue = chartData.length > 0 ? getData(chartData[chartData.length - 1]) : 0;
+            const averageValue = chartData.length > 0 ? Math.round(chartData.reduce((sum, d) => sum + getData(d), 0) / chartData.length) : 0;
+            const points = chartData.map((d, i) => `${(i / (chartData.length - 1)) * 100},${100 - getData(d)}`).join(' ');
 
             return (
-                <div className="pt-12 space-y-12 animate-[slideUp_0.5s_ease-out]">
-                    <div className="text-center space-y-4">
-                        <div className="flex justify-center gap-2 mb-6">
-                            {['day', 'week', 'month'].map(r => (
-                                <button key={r} onClick={() => setRange(r)} className={`px-4 py-1 rounded text-[10px] uppercase font-bold tracking-widest transition-colors ${range === r ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-600 hover:text-slate-400'}`}>{r}</button>
-                            ))}
+                <div className="pt-8 space-y-8 animate-[slideUp_0.5s_ease-out]">
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="flex gap-2 bg-theme-card p-1 rounded-lg border border-theme">
+                            {['week', 'month'].map(r => <button key={r} onClick={() => setRange(r)} className={`px-4 py-1.5 rounded-md text-[10px] uppercase font-bold transition-all ${range === r ? 'theme-btn' : 'text-muted-theme'}`}>{t(r)}</button>)}
                         </div>
-                        <h2 className="text-slate-400 text-sm">{range === 'day' ? 'Today\'s Score' : range === 'week' ? '7-Day Trend' : '30-Day Trend'}</h2>
-                        <div className={`text-6xl font-mono font-bold ${currentScore >= 80 ? 'text-green-700' : currentScore >= 50 ? 'text-yellow-700' : 'text-slate-700'}`}>{range === 'day' ? currentScore : Math.round(chartData.reduce((acc, d) => acc + d.score, 0) / chartData.length)}%</div>
+                        <div className="flex gap-2 bg-theme-card p-1 rounded-lg border border-theme">
+                            {['score', 'rewards', 'punishments'].map(v => <button key={v} onClick={() => setView(v)} className={`px-4 py-1.5 rounded-md text-[10px] uppercase font-bold transition-all ${view === v ? 'theme-btn' : 'text-muted-theme'}`}>{t(v)}</button>)}
+                        </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center bg-theme-card border-theme border p-6 rounded-xl">
+                        <div className="text-center">
+                            <div className="text-xs uppercase tracking-widest text-muted-theme mb-1">Current</div>
+                            <div className={`text-3xl font-bold ${view === 'score' ? 'text-[var(--accent)]' : view === 'rewards' ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>{currentValue}%</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-xs uppercase tracking-widest text-muted-theme mb-1">Average</div>
+                            <div className="text-3xl font-bold text-theme">{averageValue}%</div>
+                        </div>
+                    </div>
+                    
+                    <div className="h-64 w-full relative p-4 bg-theme-card border-theme border rounded-xl">
+                        <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.2"/>
+                                    <stop offset="100%" stopColor="var(--accent)" stopOpacity="0"/>
+                                </linearGradient>
+                            </defs>
+                            <line x1="0" y1="0" x2="100" y2="0" stroke="var(--border)" strokeWidth="0.5" strokeDasharray="2" />
+                            <line x1="0" y1="50" x2="100" y2="50" stroke="var(--border)" strokeWidth="0.5" strokeDasharray="2" />
+                            <line x1="0" y1="100" x2="100" y2="100" stroke="var(--border)" strokeWidth="0.5" strokeDasharray="2" />
+                            <polygon points={`0,100 ${points} 100,100`} fill="url(#chartGradient)" />
+                            <polyline fill="none" stroke={view === 'score' ? 'var(--accent)' : view === 'rewards' ? 'var(--success)' : 'var(--danger)'} strokeWidth="2" points={points} vectorEffect="non-scaling-stroke"/>
+                            {chartData.map((d, i) => (
+                                <circle key={i} cx={(i / (chartData.length - 1)) * 100} cy={100 - getData(d)} r="1.5" fill="var(--bg)" stroke={view === 'score' ? 'var(--accent)' : view === 'rewards' ? 'var(--success)' : 'var(--danger)'} strokeWidth="1" vectorEffect="non-scaling-stroke" />
+                            ))}
+                        </svg>
+                        <div className="flex justify-between mt-2 text-[9px] text-muted-theme font-mono uppercase">
+                            {chartData.filter((_, i) => i % Math.ceil(chartData.length/7) === 0).map((d, i) => <span key={i}>{d.label}</span>)}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function GoalsView({ goals, isManaging, onToggleManage, onEdit, onNew, onCheck, t }) {
+            return (
+                <div className="pt-8 space-y-8 animate-[slideUp_0.5s_ease-out]">
+                    <div className="flex justify-between items-end border-b border-theme pb-4">
+                        <h2 className="text-2xl font-bold text-theme">{t('goals')}</h2>
+                        <button onClick={onToggleManage} className="text-xs font-bold uppercase text-muted-theme">{isManaging ? t('save') : t('architect')}</button>
                     </div>
                     <div className="space-y-4">
-                        <div className="flex gap-1 h-32 items-end">
-                            {chartData.map((d, i) => (
-                                <div key={i} className="flex-1 flex flex-col justify-end gap-2 group relative">
-                                    <div style={{ height: `${d.score}%` }} className={`w-full rounded-sm opacity-80 transition-all duration-700 ${d.score >= 80 ? 'bg-green-900' : d.score >= 50 ? 'bg-yellow-800' : 'bg-red-900'} ${d.isToday ? 'ring-1 ring-white' : ''}`}></div>
-                                    <span className="text-[10px] text-center text-slate-600 font-mono">{d.label}</span>
+                        {goals.map(g => {
+                            const textValue = typeof g.text === 'object' ? (g.text.text || JSON.stringify(g.text)) : (g.text || '');
+                            return (
+                                <div key={g.id} className={`p-6 bg-theme-card border-theme border rounded-xl relative transition-all ${g.is_completed ? 'opacity-60 border-[var(--success)]' : ''}`}>
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex gap-4 items-center">
+                                            <button onClick={() => onCheck(g.id, !g.is_completed)} className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${g.is_completed ? 'bg-[var(--success)] border-transparent text-black' : 'border-[var(--muted)]'}`}>
+                                                {g.is_completed && <Icons.Check size={14} />}
+                                            </button>
+                                            <div>
+                                                <h3 className={`font-bold text-lg text-theme ${g.is_completed ? 'line-through text-muted-theme' : ''}`}>{g.title || 'Untitled Goal'}</h3>
+                                                <span className="text-[10px] font-bold uppercase bg-theme-bg px-2 py-0.5 rounded text-muted-theme">{g.timeline || 'No timeline'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2 pl-10">
+                                        <p className="text-[10px] text-muted-theme uppercase font-bold tracking-wider">Supported By</p>
+                                        {g.linked_systems && g.linked_systems.length > 0 ? (
+                                            g.linked_systems.map((s, i) => {
+                                                const text = typeof s === 'object' ? (s.text || JSON.stringify(s)) : s;
+                                                return (
+                                                    <div key={i} className="flex items-center gap-2 text-sm text-muted-theme">
+                                                        <Icons.CheckCircle size={12} /> {text}
+                                                    </div>
+                                                );
+                                            })
+                                        ) : (
+                                            <div className="text-sm text-muted-theme italic">No linked systems</div>
+                                        )}
+                                    </div>
+                                    {isManaging && <button onClick={() => onEdit(g)} className="absolute top-3 right-3 p-2 bg-theme-bg rounded text-muted-theme"><Icons.Edit size={16} /></button>}
                                 </div>
-                            ))}
+                            );
+                        })}
+                        {isManaging && <button onClick={onNew} className="w-full py-5 border-2 border-dashed border-theme rounded-xl flex justify-center items-center gap-2 text-muted-theme font-bold uppercase text-xs hover:brightness-125"><Icons.Plus size={20} /> {t('new_block')}</button>}
+                    </div>
+                </div>
+            );
+        }
+
+        function SettingsView({ theme, setTheme, lang, setLang, t, isLocked, onSeal, onBreak, onResetDay }) {
+            const fileRef = useRef(null); 
+            const handleSave = async () => { 
+                const data = JSON.stringify({ s: SESSION_ID, k: ENCRYPTION_KEY }); 
+                const blob = new Blob([data], {type: "application/json"}); 
+                const url = URL.createObjectURL(blob); 
+                const a = document.createElement('a'); a.href = url; a.download = "identity_backup.json"; document.body.appendChild(a); a.click(); document.body.removeChild(a); 
+            }; 
+            const handleLoad = (e) => { 
+                const f = e.target.files[0]; if(!f) return; 
+                const r = new FileReader(); 
+                r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if(d.s && d.k && confirm("Overwrite current data?")) { localStorage.setItem('identity_session_id', d.s); localStorage.setItem('identity_encryption_key', d.k); window.location.reload(); } } catch(err) { alert("Error loading backup file"); } }; 
+                r.readAsText(f); 
+            };
+            
+            return (
+                <div className="space-y-8 animate-[fadeIn_0.5s_ease-out] pt-8">
+                    <h1 className="text-2xl font-bold text-theme">{t('settings')}</h1>
+                    
+                    <div className={`p-6 rounded-xl border ${isLocked ? 'border-[var(--success)] bg-green-900/10' : 'bg-theme-card border-theme'}`}>
+                        <h2 className="text-xs font-bold uppercase tracking-widest text-muted-theme mb-4">{t('seal_contract')}</h2>
+                        {!isLocked ? (
+                            <div className="space-y-3">
+                                <p className="text-xs text-muted-theme">{t('seal_desc')}</p>
+                                <div className="flex gap-2">
+                                    {[7, 14, 21].map(d => <button key={d} onClick={() => onSeal(d)} className="flex-1 bg-theme-bg border border-theme py-3 rounded-lg text-xs font-bold text-theme hover:bg-[var(--success)] hover:text-white transition-colors">{d} {t('days')}</button>)}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center space-y-4">
+                                <p className="text-sm font-bold text-[var(--success)]">{t('locked')}</p>
+                                <button onClick={onBreak} className="text-xs text-[var(--danger)] border border-[var(--danger)] px-4 py-2 rounded hover:bg-[var(--danger)] hover:text-white transition-colors">{t('break_contract')}</button>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="bg-theme-card border-theme border p-6 rounded-xl">
+                        <button onClick={onResetDay} className="w-full text-[var(--danger)] border border-[var(--danger)] py-3 rounded-lg text-xs font-bold uppercase hover:bg-[var(--danger)] hover:text-white transition-colors">{t('reset_day')}</button>
+                    </div>
+                    
+                    <div className="bg-theme-card border-theme border p-6 rounded-xl">
+                        <h2 className="text-xs font-bold uppercase tracking-widest text-muted-theme mb-4">{t('language')}</h2>
+                        <div className="flex gap-2">
+                            {['en', 'ar', 'de'].map(l => <button key={l} onClick={() => setLang(l)} className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase border transition-all ${lang === l ? 'theme-btn border-transparent' : 'bg-theme-bg text-muted-theme border-theme'}`}>{l === 'en' ? 'EN' : l === 'ar' ? 'AR' : 'DE'}</button>)}
                         </div>
                     </div>
-                    <div className="p-4 border border-slate-800 bg-slate-900/50 rounded text-sm text-slate-500 text-center italic">"You are not tracking results, only system adherence."</div>
+                    
+                    <div className="bg-theme-card border-theme border p-6 rounded-xl">
+                        <h2 className="text-xs font-bold uppercase tracking-widest text-muted-theme mb-4">{t('theme')}</h2>
+                        <div className="flex gap-2">
+                            {['midnight', 'pure', 'light'].map(th => <button key={th} onClick={() => setTheme(th)} className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase border transition-all ${theme === th ? 'theme-btn border-transparent' : 'bg-theme-bg text-muted-theme border-theme'}`}>{th}</button>)}
+                        </div>
+                    </div>
+                    
+                    <div className="bg-theme-card border-theme border p-6 rounded-xl">
+                        <h2 className="text-xs font-bold uppercase tracking-widest text-muted-theme mb-4">{t('backup')}</h2>
+                        <div className="flex flex-col gap-3">
+                            <button onClick={handleSave} className="w-full bg-theme-bg py-4 rounded-lg border border-theme hover:brightness-125 transition-colors flex items-center justify-center gap-3 font-bold text-theme"><Icons.Download size={16} /> {t('save')}</button>
+                            <button onClick={() => fileRef.current.click()} className="w-full bg-theme-bg py-4 rounded-lg border border-theme hover:brightness-125 transition-colors flex items-center justify-center gap-3 font-bold text-theme"><Icons.Upload size={16} /> {t('restore')}</button>
+                            <input type="file" ref={fileRef} onChange={handleLoad} accept=".json" className="hidden" />
+                        </div>
+                    </div>
                 </div>
             );
         }
 
-        function GoalsView({ goals, isManaging, onToggleManage, onEdit, onNew }) {
-            return (
-                <div className="pt-12 space-y-8 animate-[slideUp_0.5s_ease-out] pb-24">
-                   <div className="flex justify-between items-end border-b border-slate-800 pb-4">
-                       <h2 className="text-xl font-bold text-slate-200">Grand Goals</h2>
-                       <button onClick={onToggleManage} className="text-[10px] uppercase font-bold text-slate-600 hover:text-slate-400">{isManaging ? 'Done Editing' : 'Edit Goals'}</button>
-                   </div>
-                   <div className="space-y-6">
-                     {goals.map(goal => (
-                         <div key={goal.id} className="p-5 bg-slate-900 border border-slate-800 rounded-lg group relative">
-                            <div className="flex justify-between items-start mb-3">
-                                <h3 className="font-bold text-slate-200">{goal.title}</h3>
-                                <span className="text-[10px] uppercase bg-slate-800 px-2 py-1 rounded text-slate-400 font-bold">{goal.timeline}</span>
-                            </div>
-                            <div className="mt-4 space-y-2">
-                                <p className="text-[10px] text-slate-600 uppercase font-bold tracking-wider">Supported By</p>
-                                {goal.linked_systems && goal.linked_systems.map((s, i) => <div key={i} className="flex items-center gap-2 text-sm text-slate-400"><Icons.CheckCircle size={12} className="text-slate-600" /> {s}</div>)}
-                            </div>
-                            {isManaging && <button onClick={() => onEdit(goal)} className="absolute top-2 right-2 p-2 bg-slate-800 rounded text-slate-400 hover:text-white"><Icons.Edit size={14} /></button>}
-                         </div>
-                     ))}
-                     {isManaging && <button onClick={onNew} className="w-full py-4 border-2 border-dashed border-slate-800 rounded-lg text-slate-600 hover:text-slate-400 hover:border-slate-600 flex justify-center items-center gap-2"><Icons.Plus size={20} /> <span className="uppercase text-xs font-bold tracking-widest">Add New Goal</span></button>}
-                   </div>
-                </div>
-            );
-        }
-
-        // --- UPDATED TASK DRAWER (Multi-Media) ---
-        function TaskDrawer({ task, onClose, onUpdateStatus }) {
+        function TaskDrawer({ task, t, onClose, onStateChange }) {
+            if (!task) return null;
             const [seconds, setSeconds] = useState(0);
             const [isRunning, setIsRunning] = useState(false);
+            
             useEffect(() => {
                 let interval;
-                if (isRunning) {
-                    interval = setInterval(() => setSeconds(s => s + 1), 1000);
-                    if (task.status === 'idle') onUpdateStatus('in-progress');
-                }
+                if (isRunning) interval = setInterval(() => setSeconds(s => s + 1), 1000);
                 return () => clearInterval(interval);
-            }, [isRunning, task.status]);
+            }, [isRunning]);
             
-            const handleComplete = () => { setIsRunning(false); onUpdateStatus('completed'); onClose(); };
-
-            const renderSingleMedia = (item, idx) => {
-                const { type, url, label } = item;
-                if (!url) return null;
-
-                let content;
-                if (url.includes('youtube.com') || url.includes('youtu.be')) {
-                    const videoId = url.split('v=')[1]?.split('&')[0] || url.split('/').pop();
-                    content = <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${videoId}`} title={label} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>;
-                } else {
-                    content = <img src={url} alt={label} className="w-full h-full object-cover" />;
-                }
-
-                return (
-                    <div key={idx} className="space-y-1">
-                         <div className="aspect-video bg-slate-900 border border-slate-800 rounded flex items-center justify-center relative overflow-hidden">
-                             {content}
-                         </div>
-                         {label && <p className="text-[10px] text-slate-500 font-mono text-center uppercase">{label}</p>}
-                    </div>
-                );
-            };
-
-            const mediaList = task.media_items || [];
+            const handleComplete = () => { setIsRunning(false); onStateChange(task.id, 'complete'); onClose(); };
 
             return (
                 <div className="fixed inset-0 z-[60] flex justify-end">
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
                     <div className="relative w-full md:w-[600px] bg-slate-950 border-l border-slate-800 h-full flex flex-col shadow-2xl animate-[slideInRight_0.3s_ease-out]">
                         <div className="p-6 border-b border-slate-800 flex justify-between items-start bg-slate-900">
-                            <div><h2 className="text-xl md:text-2xl font-bold text-white">{task.title}</h2><div className="flex gap-2 text-slate-500 font-mono text-sm mt-1"><span>{task.start_time}</span><span>—</span><span>{task.end_time}</span></div></div>
-                            <button onClick={onClose} className="text-slate-500 hover:text-white p-2">Close</button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                            <div className="flex gap-2 flex-wrap">{task.rules && task.rules.map((rule, i) => <span key={i} className="px-3 py-1 bg-red-950/50 text-red-200 text-xs font-bold uppercase rounded border border-red-900/50">{rule}</span>)}</div>
-                            <div className="space-y-4">
-                                <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold">Execution Steps</h3>
-                                <ul className="space-y-3">{task.instructions && task.instructions.map((step) => <li key={step.id} className="flex gap-4 items-start bg-slate-900 p-4 rounded border border-slate-800"><div className="w-1.5 h-1.5 mt-2 bg-slate-500 rounded-full shrink-0"></div><span className="text-slate-300 leading-relaxed text-sm md:text-base">{step.text}</span></li>)}</ul>
+                            <div>
+                                <h2 className="text-xl md:text-2xl font-bold text-white">{task.title || 'Untitled Habit'}</h2>
+                                <div className="flex gap-2 text-slate-500 font-mono text-sm mt-1"><span>{task.start_time || '--:--'}</span><span>–</span><span>{task.end_time || '--:--'}</span></div>
                             </div>
+                            <button onClick={onClose} className="text-slate-500 hover:text-white p-2"><Icons.X size={20} /></button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                            {task.rules && task.rules.length > 0 && (
+                                <div className="flex gap-2 flex-wrap">
+                                    {task.rules.map((rule, i) => {
+                                        const ruleText = rule.text || rule || '';
+                                        return (
+                                            <span key={i} className="px-3 py-1 bg-red-950/50 text-red-200 text-xs font-bold uppercase rounded border border-red-900/50">
+                                                {ruleText}
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            )}
                             
-                            {/* Render Multiple Media Items */}
-                            {mediaList.length > 0 && (
-                                <div className="space-y-6">
-                                     <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold">References</h3>
-                                     {mediaList.map((item, idx) => renderSingleMedia(item, idx))}
+                            <div className="space-y-4">
+                                <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold">{t('steps')}</h3>
+                                {task.instructions && task.instructions.length > 0 ? (
+                                    <ul className="space-y-3">
+                                        {task.instructions.map((step, i) => {
+                                            const stepText = step.text || step || '';
+                                            return (
+                                                <li key={i} className="flex gap-4 items-start bg-slate-900 p-4 rounded border border-slate-800">
+                                                    <div className="w-1.5 h-1.5 mt-2 bg-slate-500 rounded-full shrink-0"></div>
+                                                    <span className="text-slate-300 leading-relaxed text-sm md:text-base">{stepText}</span>
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                ) : <p className="text-slate-500 italic">No steps defined</p>}
+                            </div>
+
+                            {task.media_items && task.media_items.length > 0 && (
+                                <div className="space-y-4">
+                                    <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold">{t('media')}</h3>
+                                    <div className="space-y-3">
+                                        {task.media_items.map((media, i) => {
+                                            const label = media.label || media.text || `Reference ${i + 1}`;
+                                            const url = media.url || '';
+                                            const type = media.type || '';
+                                            
+                                            if (type === 'image') {
+                                                return (
+                                                    <div key={i} className="bg-slate-900 p-4 rounded border border-slate-800">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <Icons.Image size={14} className="text-slate-500" />
+                                                            <span className="text-slate-300 text-sm">{label}</span>
+                                                        </div>
+                                                        <img src={url} alt={label} className="w-full h-auto rounded max-h-48 object-cover" />
+                                                    </div>
+                                                );
+                                            } else if (type === 'youtube' || url.includes('youtube.com') || url.includes('youtu.be')) {
+                                                const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+                                                return (
+                                                    <div key={i} className="bg-slate-900 p-4 rounded border border-slate-800">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <Icons.Video size={14} className="text-slate-500" />
+                                                            <span className="text-slate-300 text-sm">{label}</span>
+                                                        </div>
+                                                        {videoId && (
+                                                            <div className="aspect-video w-full">
+                                                                <iframe 
+                                                                    src={`https://www.youtube.com/embed/${videoId}`}
+                                                                    className="w-full h-full rounded"
+                                                                    title={label}
+                                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                                    allowFullScreen
+                                                                ></iframe>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            } else {
+                                                return (
+                                                    <div key={i} className="bg-slate-900 p-4 rounded border border-slate-800">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-slate-300 text-sm">{label}</span>
+                                                        </div>
+                                                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-slate-400 text-sm underline break-all">{url}</a>
+                                                    </div>
+                                                );
+                                            }
+                                        })}
+                                    </div>
                                 </div>
                             )}
 
-                            {mediaList.length === 0 && (
-                                <div className="aspect-video bg-slate-900 border border-slate-800 rounded flex items-center justify-center flex-col gap-2 text-slate-600">
-                                    <Icons.Image size={32} />
-                                    <span className="text-xs font-mono uppercase">No Media Attached</span>
-                                </div>
-                            )}
+                            <div className="pt-4 text-center">
+                                <button onClick={() => { setIsRunning(false); onStateChange(task.id, 'fail'); onClose(); }} className="w-full py-4 border border-red-900/50 rounded bg-red-950/10 text-red-500 text-sm uppercase font-bold hover:bg-red-950/30 transition-colors flex items-center justify-center gap-2">
+                                    <Icons.X size={16} /> {t('fail')} - Accept Consequences
+                                </button>
+                            </div>
                         </div>
+                        
                         <div className="p-6 border-t border-slate-800 bg-slate-900 pb-8 md:pb-6">
-                            <div className="flex items-center justify-between mb-4"><span className="text-[10px] uppercase text-slate-500 tracking-widest font-bold">Presence Timer</span><span className="font-mono text-3xl font-bold text-slate-100">{Math.floor(seconds / 60).toString().padStart(2, '0')}:{(seconds % 60).toString().padStart(2, '0')}</span></div>
+                            <div className="flex items-center justify-between mb-4">
+                                <span className="text-[10px] uppercase text-slate-500 tracking-widest font-bold">{t('timer')}</span>
+                                <span className="font-mono text-3xl font-bold text-slate-100">{Math.floor(seconds / 60).toString().padStart(2, '0')}:{(seconds % 60).toString().padStart(2, '0')}</span>
+                            </div>
                             <div className="flex gap-4 flex-col md:flex-row">
-                                <button onClick={() => setIsRunning(!isRunning)} className={`flex-1 py-4 rounded font-bold flex items-center justify-center gap-2 transition-all ${isRunning ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-900 hover:bg-white'}`}>{isRunning ? <><Icons.Pause size={18} /> PAUSE</> : <><Icons.Play size={18} /> START EXECUTION</>}</button>
+                                <button onClick={() => setIsRunning(!isRunning)} className={`flex-1 py-4 rounded font-bold flex items-center justify-center gap-2 transition-all ${isRunning ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-900 hover:bg-white'}`}>
+                                    {isRunning ? <><Icons.Pause size={18} /> {t('pause')}</> : <><Icons.Play size={18} /> {t('start')}</>}
+                                </button>
                                 <button onClick={handleComplete} className="py-4 md:py-0 px-8 border border-slate-700 bg-slate-800/50 hover:bg-green-900/20 hover:border-green-800 hover:text-green-500 rounded text-slate-400 transition-colors flex justify-center items-center"><Icons.CheckCircle size={24} /></button>
                             </div>
                         </div>
@@ -425,132 +924,211 @@
             );
         }
 
-        // --- UPDATED TASK EDITOR (Multi-Media) ---
-        function TaskEditor({ task, onSave, onDelete, onClose }) {
-            const [formData, setFormData] = useState({
-                id: task.id,
-                title: task.title,
-                start_time: task.start_time || '', 
-                end_time: task.end_time || '',
-                instructions: task.instructions || [],
-                rules: task.rules || [],
-                // Ensure media_items is an array
-                media_items: task.media_items || []
+        function TaskEditor({ task, t, onSave, onDelete, onClose }) {
+            const [form, setForm] = useState({ 
+                ...task, 
+                instructions: task.instructions || [], 
+                rules: task.rules || [], 
+                media_items: task.media_items || [], 
+                schedule_days: task.schedule_days || [0,1,2,3,4,5,6], 
+                reward_text: task.reward_text || '', 
+                punishment_text: task.punishment_text || '' 
             });
             
-            const handleChange = (f, v) => setFormData(prev => ({...prev, [f]: v}));
+            const handleChange = (field, value) => setForm(prev => ({...prev, [field]: value}));
+            const toggleDay = (dayIndex) => setForm(prev => ({...prev, schedule_days: prev.schedule_days.includes(dayIndex) ? prev.schedule_days.filter(d => d !== dayIndex) : [...prev.schedule_days, dayIndex]}));
             
-            const handleListChange = (field, idx, val) => {
-                const list = [...formData[field]];
-                if (field === 'instructions') list[idx].text = val;
-                else list[idx] = val;
-                setFormData(prev => ({...prev, [field]: list}));
+            const handleListChange = (field, index, value, subField = 'text') => { 
+                const newList = [...form[field]]; 
+                if (!newList[index]) newList[index] = {};
+                newList[index][subField] = value; 
+                setForm(prev => ({...prev, [field]: newList})); 
             };
-
-            const addListItem = (field) => {
-                const item = field === 'instructions' ? { id: Date.now(), text: '' } : '';
-                setFormData(prev => ({...prev, [field]: [...prev[field], item]}));
-            };
-
-            // MEDIA HANDLERS
-            const addMedia = () => {
-                setFormData(prev => ({
-                    ...prev, 
-                    media_items: [...prev.media_items, { type: 'image', url: '', label: '' }]
-                }));
-            };
-
-            const updateMedia = (idx, field, val) => {
-                const newMedia = [...formData.media_items];
-                newMedia[idx][field] = val;
-                setFormData(prev => ({ ...prev, media_items: newMedia }));
-            };
-
-            const removeMedia = (idx) => {
-                const newMedia = formData.media_items.filter((_, i) => i !== idx);
-                setFormData(prev => ({ ...prev, media_items: newMedia }));
+            
+            const addListItem = (field, template = { text: '' }) => setForm(prev => ({...prev, [field]: [...prev[field], template]}));
+            const removeListItem = (field, index) => setForm(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
+            
+            const handleSubmit = () => {
+                if (!form.title || form.title.trim() === '') { alert("Please enter a title for the habit."); return; }
+                const cleanedForm = {
+                    ...form,
+                    instructions: form.instructions.filter(item => item.text && item.text.trim() !== ''),
+                    rules: form.rules.filter(item => item.text && item.text.trim() !== ''),
+                    media_items: form.media_items.filter(item => item.url && item.url.trim() !== ''),
+                    title: form.title.trim()
+                };
+                onSave(cleanedForm);
             };
 
             return (
                 <div className="fixed inset-0 z-[70] flex justify-center items-center p-4 bg-black/80 backdrop-blur-sm">
                     <div className="bg-slate-900 w-full max-w-lg rounded-xl shadow-2xl border border-slate-700 flex flex-col max-h-[90vh]">
-                        <div className="p-4 border-b border-slate-700 flex justify-between items-center"><h2 className="font-bold text-slate-100">{task.id === 'new' ? 'Create Block' : 'Edit Block'}</h2><button onClick={onClose} className="text-slate-500 hover:text-white"><Icons.X size={20} /></button></div>
+                        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+                            <h2 className="font-bold text-slate-100">{task.id === 'new' ? t('new_block') : t('edit_block')}</h2>
+                            <button onClick={onClose} className="text-slate-500 hover:text-white"><Icons.X size={20} /></button>
+                        </div>
                         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                            <div className="space-y-4">
-                                <div><label className="block text-xs uppercase text-slate-500 mb-1">Title</label><input value={formData.title} onChange={e => handleChange('title', e.target.value)} className="w-full p-2 rounded" placeholder="Habit Name" /></div>
-                                <div className="flex gap-4">
-                                    <div className="flex-1"><label className="block text-xs uppercase text-slate-500 mb-1">Start</label><input type="time" value={formData.start_time} onChange={e => handleChange('start_time', e.target.value)} className="w-full p-2 rounded" /></div>
-                                    <div className="flex-1"><label className="block text-xs uppercase text-slate-500 mb-1">End</label><input type="time" value={formData.end_time} onChange={e => handleChange('end_time', e.target.value)} className="w-full p-2 rounded" /></div>
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 mb-1">{t('title')} *</label>
+                                <input value={form.title} onChange={e => handleChange('title', e.target.value)} className="w-full p-2 rounded bg-slate-800 border border-slate-700" placeholder="Habit Name" required />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 mb-1">{t('schedule')}</label>
+                                <div className="flex gap-1">
+                                    {DAYS_MAP.map((day, index) => (
+                                        <button key={day} type="button" onClick={() => toggleDay(index)} className={`flex-1 py-2 rounded text-xs font-bold ${form.schedule_days.includes(index) ? 'bg-slate-100 text-slate-900' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                                            {day[0]}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
                             
-                            {/* MEDIA LIST SECTION */}
+                            <div className="flex gap-4">
+                                <div className="flex-1">
+                                    <label className="block text-xs uppercase text-slate-500 mb-1">Start Time</label>
+                                    <input type="time" value={form.start_time} onChange={e => handleChange('start_time', e.target.value)} className="w-full p-2 rounded bg-slate-800 border border-slate-700"/>
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-xs uppercase text-slate-500 mb-1">End Time</label>
+                                    <input type="time" value={form.end_time} onChange={e => handleChange('end_time', e.target.value)} className="w-full p-2 rounded bg-slate-800 border border-slate-700"/>
+                                </div>
+                            </div>
+                            
                             <div>
-                                <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between"><span>Media Attachments</span><button onClick={addMedia} className="text-green-500 font-bold text-[10px]">+ ADD MEDIA</button></label>
-                                <div className="space-y-3">
-                                    {formData.media_items.map((item, i) => (
-                                        <div key={i} className="bg-slate-800 p-3 rounded border border-slate-700 space-y-2 relative">
-                                            <button onClick={() => removeMedia(i)} className="absolute top-2 right-2 text-slate-500 hover:text-red-500"><Icons.X size={16} /></button>
-                                            
-                                            <select value={item.type} onChange={e => updateMedia(i, 'type', e.target.value)} className="w-full p-1 text-xs bg-slate-900 rounded border border-slate-700 mb-1">
-                                                <option value="image">Image</option>
-                                                <option value="video">Video / YouTube</option>
-                                            </select>
-                                            
-                                            <input value={item.url} onChange={e => updateMedia(i, 'url', e.target.value)} className="w-full p-2 rounded text-sm bg-slate-900" placeholder="URL (YouTube or Image Link)..." />
-                                            <input value={item.label} onChange={e => updateMedia(i, 'label', e.target.value)} className="w-full p-2 rounded text-sm bg-slate-900" placeholder="Label (e.g. Reference)" />
+                                <label className="block text-xs uppercase text-slate-500 mb-1">{t('reward')} ({t('optional')})</label>
+                                <input value={form.reward_text} onChange={e => handleChange('reward_text', e.target.value)} className="w-full p-2 rounded bg-slate-800 border border-slate-700 border-green-900/50" placeholder="Reward for completion"/>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 mb-1">{t('punishment')} ({t('optional')})</label>
+                                <input value={form.punishment_text} onChange={e => handleChange('punishment_text', e.target.value)} className="w-full p-2 rounded bg-slate-800 border border-slate-700 border-red-900/50" placeholder="Consequence for failure"/>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between items-center">
+                                    <span>{t('rules')}</span>
+                                    <button type="button" onClick={() => addListItem('rules')} className="text-green-500 font-bold text-[10px] hover:text-green-400">+ ADD</button>
+                                </label>
+                                <div className="space-y-2">
+                                    {form.rules.map((rule, index) => (
+                                        <div key={index} className="flex gap-2 items-center">
+                                            <input value={rule.text || ''} onChange={e => handleListChange('rules', index, e.target.value)} className="flex-1 p-2 rounded text-sm bg-slate-800 border border-slate-700" placeholder={`Rule ${index + 1}`}/>
+                                            <button type="button" onClick={() => removeListItem('rules', index)} className="text-red-500 hover:text-red-400">
+                                                <Icons.X size={16} />
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                             
                             <div>
-                                <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between"><span>Execution Steps</span><button onClick={() => addListItem('instructions')} className="text-green-500 font-bold text-[10px]">+ ADD</button></label>
-                                <div className="space-y-2">{formData.instructions.map((inst, i) => <div key={i} className="flex gap-2"><input value={inst.text} onChange={e => handleListChange('instructions', i, e.target.value)} className="flex-1 p-2 rounded text-sm bg-slate-800" /><button onClick={() => setFormData(p => ({...p, instructions: p.instructions.filter((_, idx) => idx !== i)}))} className="text-red-500"><Icons.X size={16} /></button></div>)}</div>
+                                <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between items-center">
+                                    <span>{t('steps')}</span>
+                                    <button type="button" onClick={() => addListItem('instructions')} className="text-green-500 font-bold text-[10px] hover:text-green-400">+ ADD</button>
+                                </label>
+                                <div className="space-y-2">
+                                    {form.instructions.map((step, index) => (
+                                        <div key={index} className="flex gap-2 items-center">
+                                            <input value={step.text || ''} onChange={e => handleListChange('instructions', index, e.target.value)} className="flex-1 p-2 rounded text-sm bg-slate-800 border border-slate-700" placeholder={`Step ${index + 1}`}/>
+                                            <button type="button" onClick={() => removeListItem('instructions', index)} className="text-red-500 hover:text-red-400">
+                                                <Icons.X size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
+                            
                             <div>
-                                <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between"><span>Rules</span><button onClick={() => addListItem('rules')} className="text-green-500 font-bold text-[10px]">+ ADD</button></label>
-                                <div className="space-y-2">{formData.rules.map((r, i) => <div key={i} className="flex gap-2"><input value={r} onChange={e => handleListChange('rules', i, e.target.value)} className="flex-1 p-2 rounded text-sm bg-slate-800" /><button onClick={() => setFormData(p => ({...p, rules: p.rules.filter((_, idx) => idx !== i)}))} className="text-red-500"><Icons.X size={16} /></button></div>)}</div>
+                                <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between items-center">
+                                    <span>{t('media')} ({t('optional')})</span>
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={() => addListItem('media_items', { type: 'image', url: '', label: '' })} className="text-green-500 font-bold text-[10px] hover:text-green-400">+ IMAGE</button>
+                                        <button type="button" onClick={() => addListItem('media_items', { type: 'youtube', url: '', label: '' })} className="text-green-500 font-bold text-[10px] hover:text-green-400">+ YOUTUBE</button>
+                                    </div>
+                                </label>
+                                <div className="space-y-4">
+                                    {form.media_items.map((media, index) => (
+                                        <div key={index} className="bg-slate-800 p-4 rounded border border-slate-700 space-y-3">
+                                            <div className="flex gap-2 items-center">
+                                                <select value={media.type || ''} onChange={e => handleListChange('media_items', index, e.target.value, 'type')} className="bg-slate-900 border border-slate-700 rounded text-sm p-2">
+                                                    <option value="">Select Type</option>
+                                                    <option value="image">Image</option>
+                                                    <option value="youtube">YouTube</option>
+                                                    <option value="link">Link</option>
+                                                </select>
+                                                <input value={media.label || ''} onChange={e => handleListChange('media_items', index, e.target.value, 'label')} className="flex-1 p-2 rounded text-sm bg-slate-900 border border-slate-700" placeholder="Label"/>
+                                                <button type="button" onClick={() => removeListItem('media_items', index)} className="text-red-500 hover:text-red-400">
+                                                    <Icons.X size={16} />
+                                                </button>
+                                            </div>
+                                            <input value={media.url || ''} onChange={e => handleListChange('media_items', index, e.target.value, 'url')} className="w-full p-2 rounded text-sm bg-slate-900 border border-slate-700" placeholder="URL"/>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                         <div className="p-4 border-t border-slate-700 bg-slate-850 flex justify-between">
-                            {task.id !== 'new' ? <button onClick={() => onDelete(task.id)} className="text-red-500 text-xs font-bold hover:text-red-400 flex items-center gap-1"><Icons.Trash size={14} /> DELETE</button> : <div></div>}
-                            <button onClick={() => onSave(formData)} className="bg-slate-100 text-slate-900 px-6 py-2 rounded font-bold hover:bg-white text-sm">SAVE</button>
+                            {task.id !== 'new' ? (
+                                <button onClick={() => onDelete(task.id)} className="text-red-500 text-xs font-bold hover:text-red-400 flex items-center gap-1">
+                                    <Icons.Trash size={14} /> DELETE
+                                </button>
+                            ) : <div></div>}
+                            <button onClick={handleSubmit} className="bg-slate-100 text-slate-900 px-6 py-2 rounded font-bold hover:bg-white text-sm">SAVE</button>
                         </div>
                     </div>
                 </div>
             );
         }
 
-        function GoalEditor({ goal, onSave, onDelete, onClose }) {
-            const [formData, setFormData] = useState({...goal});
-            const [linkedStr, setLinkedStr] = useState(goal.linked_systems ? goal.linked_systems.join(', ') : '');
-
-            const handleSave = () => {
-                const systems = linkedStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
-                onSave({ ...formData, linked_systems: systems });
-            };
-
+        function GoalEditor({ goal, t, onSave, onDelete, onClose }) { 
+            const [formData, setFormData] = useState({...goal}); 
+            const [linkedStr, setLinkedStr] = useState(goal.linked_systems ? goal.linked_systems.map(s => s.text || s).join(', ') : ''); 
+            
+            const handleSave = () => { 
+                if (!formData.title || formData.title.trim() === '') { alert("Please enter a goal title."); return; }
+                const systems = linkedStr.split(',').map(s => s.trim()).filter(s => s.length > 0).map(s => { 
+                    try { return { text: JSON.parse(s).text || s }; } catch { return { text: s.replace(/^"|"$/g, '') }; }
+                });
+                onSave({ ...formData, linked_systems: systems }); 
+            }; 
+            
             return (
                 <div className="fixed inset-0 z-[70] flex justify-center items-center p-4 bg-black/80 backdrop-blur-sm">
                     <div className="bg-slate-900 w-full max-w-lg rounded-xl shadow-2xl border border-slate-700 flex flex-col">
-                        <div className="p-4 border-b border-slate-700 flex justify-between items-center"><h2 className="font-bold text-slate-100">{goal.id === 'new' ? 'Create Goal' : 'Edit Goal'}</h2><button onClick={onClose} className="text-slate-500 hover:text-white"><Icons.X size={20} /></button></div>
+                        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+                            <h2 className="font-bold text-slate-100">{goal.id === 'new' ? 'Create Goal' : 'Edit Goal'}</h2>
+                            <button onClick={onClose} className="text-slate-500 hover:text-white"><Icons.X size={20} /></button>
+                        </div>
                         <div className="p-6 space-y-6">
-                            <div><label className="block text-xs uppercase text-slate-500 mb-1">Goal Title</label><input value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full p-2 rounded" /></div>
-                            <div><label className="block text-xs uppercase text-slate-500 mb-1">Timeline</label><input value={formData.timeline} onChange={e => setFormData({...formData, timeline: e.target.value})} className="w-full p-2 rounded" /></div>
-                            <div><label className="block text-xs uppercase text-slate-500 mb-1">Linked Systems</label><textarea rows="3" value={linkedStr} onChange={e => setLinkedStr(e.target.value)} className="w-full p-2 rounded bg-slate-800 resize-none" /></div>
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 mb-1">Goal Title *</label>
+                                <input value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full p-2 rounded bg-slate-800 border border-slate-700" required />
+                            </div>
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 mb-1">Timeline</label>
+                                <input value={formData.timeline} onChange={e => setFormData({...formData, timeline: e.target.value})} className="w-full p-2 rounded bg-slate-800 border border-slate-700" placeholder="e.g. 6 Months" />
+                            </div>
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 mb-1">Linked Systems (comma separated)</label>
+                                <textarea rows="3" value={linkedStr} onChange={e => setLinkedStr(e.target.value)} className="w-full p-2 rounded bg-slate-800 resize-none border border-slate-700" placeholder="Morning Movement, German Practice..." />
+                            </div>
                         </div>
                         <div className="p-4 border-t border-slate-700 bg-slate-850 flex justify-between">
-                            {goal.id !== 'new' ? <button onClick={() => onDelete(goal.id)} className="text-red-500 text-xs font-bold hover:text-red-400 flex items-center gap-1"><Icons.Trash size={14} /> DELETE</button> : <div></div>}
+                            {goal.id !== 'new' ? (
+                                <button onClick={() => onDelete(goal.id)} className="text-red-500 text-xs font-bold hover:text-red-400 flex items-center gap-1">
+                                    <Icons.Trash size={14} /> DELETE
+                                </button>
+                            ) : <div></div>}
                             <button onClick={handleSave} className="bg-slate-100 text-slate-900 px-6 py-2 rounded font-bold hover:bg-white text-sm">SAVE</button>
                         </div>
                     </div>
                 </div>
-            );
+            ); 
         }
 
         function NavButton({ icon: IconComponent, label, active, onClick }) {
-            return ( <button onClick={onClick} className={`flex flex-col items-center gap-1 p-2 rounded transition-colors ${active ? 'text-slate-100' : 'text-slate-600 hover:text-slate-400'}`}><IconComponent size={20} /><span className="text-[10px] uppercase tracking-wider font-bold">{label}</span></button> );
+            return ( <button onClick={onClick} className={`flex flex-col items-center gap-1 p-2 rounded transition-colors ${active ? 'text-theme' : 'text-muted-theme hover:text-theme'}`}><IconComponent size={20} /><span className="text-[10px] uppercase tracking-wider font-bold">{label}</span></button> );
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
