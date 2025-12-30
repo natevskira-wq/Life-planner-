@@ -2,112 +2,57 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Identity Architecture</title>
     
-    <!-- 1. UI Libraries -->
+    <!-- 1. Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- 3. Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- 2. Backend & Encryption -->
+
+    <!-- 4. Supabase Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    
+
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: { slate: { 850: '#1e293b', 900: '#0f172a', 950: '#020617' } },
-                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
-                    screens: { 'xs': '400px' }
+                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] }
                 }
             }
         }
     </script>
     
     <style>
-        /* Mobile Optimization: Smooth scrolling & hidden scrollbars */
-        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
-        
-        body { background-color: #020617; -webkit-tap-highlight-color: transparent; }
-        
-        /* Prevent auto-zoom on inputs for iOS */
-        @media screen and (max-width: 768px) {
-            input, textarea, select { font-size: 16px !important; }
-        }
-        
-        input:focus, textarea:focus, select:focus { outline: none; border-color: #94a3b8; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        body { background-color: #020617; }
+        input, textarea, select { background-color: #1e293b; color: #e2e8f0; border: 1px solid #334155; outline: none; }
+        input:focus, textarea:focus { border-color: #64748b; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- 1. CREDENTIALS ---
+        // --- SUPABASE CONFIGURATION ---
         const SUPABASE_URL = 'https://syrhuxxryctrzjdzexnx.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_f26IxnkhOy0ckfJ7hFHCrA_NcSnN0Al';
-
-        // --- 2. SYNC LOGIC ---
-        const urlParams = new URLSearchParams(window.location.search);
-        const syncSession = urlParams.get('s');
-        const syncKey = urlParams.get('k');
-
-        if (syncSession && syncKey) {
-            if (confirm("Restore data from Recovery Link? This will overwrite empty data on this device.")) {
-                localStorage.setItem('identity_session_id', syncSession);
-                localStorage.setItem('identity_encryption_key', syncKey);
-                window.location.href = window.location.pathname;
-            }
-        }
-
-        // --- 3. IDENTITY ---
-        function getOrSetLocal(key, generator) {
-            let val = localStorage.getItem(key);
-            if (!val) {
-                val = generator();
-                localStorage.setItem(key, val);
-            }
-            return val;
-        }
-
-        const SESSION_ID = getOrSetLocal('identity_session_id', () => crypto.randomUUID());
-        const ENCRYPTION_KEY = getOrSetLocal('identity_encryption_key', () => {
-            const array = new Uint8Array(32);
-            window.crypto.getRandomValues(array);
-            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
-        });
-
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-            global: { headers: { 'x-session-id': SESSION_ID } }
-        });
-
-        // --- 4. ENCRYPTION HELPERS ---
-        const encrypt = (text) => {
-            if (!text) return "";
-            try { return CryptoJS.AES.encrypt(JSON.stringify(text), ENCRYPTION_KEY).toString(); } catch (e) { return text; }
-        };
-        const decrypt = (cipherText) => {
-            if (!cipherText) return "";
-            try {
-                if (!cipherText.startsWith("U2F")) return cipherText; 
-                const bytes = CryptoJS.AES.decrypt(cipherText, ENCRYPTION_KEY);
-                return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-            } catch (e) { return cipherText; }
-        };
-        const encryptList = (list) => encrypt(list);
-        const decryptList = (cipher) => {
-            const val = decrypt(cipher);
-            return Array.isArray(val) ? val : (typeof val === 'string' ? [] : val);
-        };
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const { useState, useEffect, useMemo } = React;
 
         // --- ICONS ---
-        const Icon = ({ path, size = 20, className = "", onClick }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} onClick={onClick}>{path}</svg>;
+        const Icon = ({ path, size = 20, className = "", onClick }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} onClick={onClick}>{path}</svg>
+        );
         const Icons = {
             Layout: (p) => <Icon {...p} path={<><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></>} />,
             BarChart2: (p) => <Icon {...p} path={<><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></>} />,
@@ -123,48 +68,41 @@
             Plus: (p) => <Icon {...p} path={<><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></>} />,
             Edit: (p) => <Icon {...p} path={<><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></>} />,
             Trash: (p) => <Icon {...p} path={<><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></>} />,
-            X: (p) => <Icon {...p} path={<><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></>} />,
-            Shield: (p) => <Icon {...p} path={<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></>} />,
-            Send: (p) => <Icon {...p} path={<><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></>} />
+            X: (p) => <Icon {...p} path={<><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></>} />
         };
-        
+
         const getTodayString = () => new Date().toLocaleDateString('en-CA');
 
+        // --- MAIN APP ---
         function App() {
             const [activeTab, setActiveTab] = useState('daily');
             const [tasks, setTasks] = useState([]);
             const [goals, setGoals] = useState([]);
             const [history, setHistory] = useState({});
+            
             const [selectedTaskId, setSelectedTaskId] = useState(null);
             const [isManaging, setIsManaging] = useState(false);
             const [editingTask, setEditingTask] = useState(null);
             const [editingGoal, setEditingGoal] = useState(null);
-            const [email, setEmail] = useState('');
 
-            useEffect(() => { fetchData(); }, []);
+            useEffect(() => {
+                fetchData();
+            }, []);
 
             const fetchData = async () => {
                 const { data: tasksData } = await supabase.from('identity_tasks').select('*').order('start_time', { ascending: true });
                 if (tasksData) {
-                    const decrypted = tasksData.map(t => ({
+                    // Normalization: Ensure media_items exists even for old tasks
+                    const normalizedTasks = tasksData.map(t => ({
                         ...t,
-                        title: decrypt(t.title),
-                        instructions: decryptList(t.instructions),
-                        rules: decryptList(t.rules),
-                        media_items: decryptList(t.media_items)
+                        media_items: t.media_items || (t.media_url ? [{type: t.media_type, url: t.media_url, label: t.media_label}] : [])
                     }));
-                    setTasks(decrypted);
+                    setTasks(normalizedTasks);
                 }
+
                 const { data: goalsData } = await supabase.from('identity_goals').select('*');
-                if (goalsData) {
-                    const decryptedGoals = goalsData.map(g => ({
-                        ...g,
-                        title: decrypt(g.title),
-                        timeline: decrypt(g.timeline),
-                        linked_systems: decryptList(g.linked_systems)
-                    }));
-                    setGoals(decryptedGoals);
-                }
+                if (goalsData) setGoals(goalsData);
+
                 const { data: historyData } = await supabase.from('identity_history').select('*');
                 if (historyData) {
                     const histObj = {};
@@ -178,22 +116,32 @@
                 const completed = currentTasks.filter(t => t.status === 'completed').length;
                 const total = currentTasks.length;
                 const score = total === 0 ? 0 : Math.round((completed / total) * 100);
+
                 setHistory(prev => ({ ...prev, [today]: score }));
-                await supabase.from('identity_history').upsert({ date: today, score: score, session_id: SESSION_ID });
+                await supabase.from('identity_history').upsert({ date: today, score: score });
             };
 
-            // CRUD Handlers
             const handleSaveTask = async (task) => {
-                const payload = { session_id: SESSION_ID, start_time: task.start_time, end_time: task.end_time, status: task.status || 'idle', title: encrypt(task.title), instructions: encryptList(task.instructions), rules: encryptList(task.rules), media_items: encryptList(task.media_items) };
+                const payload = {
+                    title: task.title,
+                    start_time: task.start_time,
+                    end_time: task.end_time,
+                    instructions: task.instructions,
+                    rules: task.rules,
+                    media_items: task.media_items, // Saving the array now
+                    status: task.status || 'idle'
+                };
+
                 let updatedTasks = [...tasks];
+
                 if (task.id === 'new') {
                     const { data } = await supabase.from('identity_tasks').insert([payload]).select();
-                    if (data) updatedTasks = [...tasks, { ...data[0], ...task }];
+                    if (data) updatedTasks = [...tasks, data[0]];
                 } else {
-                    delete payload.session_id;
-                    await supabase.from('identity_tasks').update(payload).eq('id', task.id);
-                    updatedTasks = tasks.map(t => t.id === task.id ? task : t);
+                    const { data } = await supabase.from('identity_tasks').update(payload).eq('id', task.id).select();
+                    if (data) updatedTasks = tasks.map(t => t.id === task.id ? data[0] : t);
                 }
+
                 setTasks(updatedTasks);
                 updateDailyScore(updatedTasks);
                 setEditingTask(null);
@@ -202,7 +150,9 @@
             const handleDeleteTask = async (id) => {
                 if (confirm("Delete this habit block?")) {
                     await supabase.from('identity_tasks').delete().eq('id', id);
-                    setTasks(tasks.filter(t => t.id !== id));
+                    const updatedTasks = tasks.filter(t => t.id !== id);
+                    setTasks(updatedTasks);
+                    updateDailyScore(updatedTasks);
                     setEditingTask(null);
                 }
             };
@@ -215,14 +165,18 @@
             };
 
             const handleSaveGoal = async (goal) => {
-                const payload = { session_id: SESSION_ID, title: encrypt(goal.title), timeline: encrypt(goal.timeline), linked_systems: encryptList(goal.linked_systems) };
+                const payload = {
+                    title: goal.title,
+                    timeline: goal.timeline,
+                    linked_systems: goal.linked_systems
+                };
+
                 if (goal.id === 'new') {
                     const { data } = await supabase.from('identity_goals').insert([payload]).select();
-                    if (data) setGoals([...goals, { ...data[0], ...goal }]);
+                    if (data) setGoals([...goals, data[0]]);
                 } else {
-                    delete payload.session_id;
-                    await supabase.from('identity_goals').update(payload).eq('id', goal.id);
-                    setGoals(goals.map(g => g.id === goal.id ? goal : g));
+                    const { data } = await supabase.from('identity_goals').update(payload).eq('id', goal.id).select();
+                    if (data) setGoals(goals.map(g => g.id === goal.id ? data[0] : g));
                 }
                 setEditingGoal(null);
             };
@@ -235,55 +189,45 @@
                 }
             };
 
-            // --- EMAIL BACKUP LOGIC ---
-            const handleEmailBackup = async (e) => {
-                e.preventDefault();
-                if (!email) return;
-                await supabase.from('identity_backups').upsert({ session_id: SESSION_ID, email: email });
-                const url = new URL(window.location.href);
-                url.searchParams.set('s', SESSION_ID);
-                url.searchParams.set('k', ENCRYPTION_KEY);
-                const subject = "Identity System Backup";
-                const body = `Use this link to restore your system on any device:\n\n${url.toString()}`;
-                window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-                alert("Email app opened. Send the link to yourself!");
-            };
-
             return (
-                <div className="min-h-[100dvh] bg-slate-950 text-slate-200 font-sans selection:bg-slate-700 pb-24 md:pb-0">
-                    <nav className="fixed bottom-0 w-full bg-slate-900/95 backdrop-blur border-t border-slate-800 md:top-0 md:bottom-auto z-50 flex justify-around p-3 pb-safe md:justify-center md:gap-12 shadow-2xl">
+                <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-slate-700 pb-20 md:pb-0">
+                    <nav className="fixed bottom-0 w-full bg-slate-900 border-t border-slate-800 md:top-0 md:bottom-auto z-50 flex justify-around p-4 md:justify-center md:gap-12 shadow-lg">
                         <NavButton icon={Icons.Layout} label="System" active={activeTab === 'daily'} onClick={() => setActiveTab('daily')} />
                         <NavButton icon={Icons.BarChart2} label="Truth" active={activeTab === 'progress'} onClick={() => setActiveTab('progress')} />
                         <NavButton icon={Icons.Target} label="Direction" active={activeTab === 'goals'} onClick={() => setActiveTab('goals')} />
                     </nav>
 
-                    <main className="md:pt-24 max-w-2xl mx-auto px-4 py-6">
-                        {activeTab === 'daily' && <DailyView tasks={tasks} onSelectTask={(id) => !isManaging && setSelectedTaskId(id)} isManaging={isManaging} onToggleManage={() => setIsManaging(!isManaging)} onEdit={(task) => setEditingTask(task)} onNew={() => setEditingTask({ id: 'new', title: '', start_time: '', end_time: '', status: 'idle', instructions: [], rules: [], media_items: [] })} />}
+                    <main className="md:pt-24 max-w-2xl mx-auto px-4">
+                        {activeTab === 'daily' && (
+                            <DailyView 
+                                tasks={tasks} 
+                                onSelectTask={(id) => !isManaging && setSelectedTaskId(id)}
+                                isManaging={isManaging}
+                                onToggleManage={() => setIsManaging(!isManaging)}
+                                onEdit={(task) => setEditingTask(task)}
+                                onNew={() => setEditingTask({ id: 'new', title: '', start_time: '', end_time: '', status: 'idle', instructions: [], rules: [], media_items: [] })}
+                            />
+                        )}
                         {activeTab === 'progress' && <ProgressView history={history} />}
-                        {activeTab === 'goals' && <GoalsView goals={goals} isManaging={isManaging} onToggleManage={() => setIsManaging(!isManaging)} onEdit={(goal) => setEditingGoal(goal)} onNew={() => setEditingGoal({ id: 'new', title: '', timeline: '', linkedSystems: [] })} />}
-                        
-                        {/* CLEAN FOOTER */}
-                        <div className="mt-16 mb-8 pt-8 border-t border-slate-900">
-                            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 text-center shadow-lg">
-                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-4">Save Backup</p>
-                                <form onSubmit={handleEmailBackup} className="flex flex-col gap-3">
-                                    <input 
-                                        type="email" 
-                                        required 
-                                        placeholder="Enter your email..." 
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:border-slate-500 placeholder-slate-600"
-                                    />
-                                    <button type="submit" className="w-full bg-slate-100 hover:bg-white text-slate-900 px-4 py-3 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2">
-                                        <Icons.Send size={14} /> save a backup to access from any device ,Email Yourself a Magic Link
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
+                        {activeTab === 'goals' && (
+                            <GoalsView 
+                                goals={goals} 
+                                isManaging={isManaging}
+                                onToggleManage={() => setIsManaging(!isManaging)}
+                                onEdit={(goal) => setEditingGoal(goal)}
+                                onNew={() => setEditingGoal({ id: 'new', title: '', timeline: '', linkedSystems: [] })}
+                            />
+                        )}
                     </main>
 
-                    {selectedTaskId && !isManaging && <TaskDrawer task={tasks.find(t => t.id === selectedTaskId)} onClose={() => setSelectedTaskId(null)} onUpdateStatus={(status) => handleStatusUpdate(selectedTaskId, status)} />}
+                    {selectedTaskId && !isManaging && (
+                        <TaskDrawer 
+                            task={tasks.find(t => t.id === selectedTaskId)} 
+                            onClose={() => setSelectedTaskId(null)}
+                            onUpdateStatus={(status) => handleStatusUpdate(selectedTaskId, status)}
+                        />
+                    )}
+
                     {editingTask && <TaskEditor task={editingTask} onSave={handleSaveTask} onDelete={handleDeleteTask} onClose={() => setEditingTask(null)} />}
                     {editingGoal && <GoalEditor goal={editingGoal} onSave={handleSaveGoal} onDelete={handleDeleteGoal} onClose={() => setEditingGoal(null)} />}
                 </div>
@@ -291,22 +235,323 @@
         }
 
         // --- SUB COMPONENTS ---
-        function DailyView({ tasks, onSelectTask, isManaging, onToggleManage, onEdit, onNew }) {const today = new Date();const sortedTasks = [...tasks].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));return (<div className="space-y-6 animate-[fadeIn_0.5s_ease-out]"><header className="border-l-4 border-slate-700 pl-4 py-2"><h2 className="text-slate-500 text-xs font-mono uppercase tracking-widest">{today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</h2><h1 className="text-xl md:text-2xl font-bold text-slate-100 mt-1 leading-tight">{isManaging ? "Architect Mode" : "Today I win if I complete the system."}</h1></header><div className="space-y-3 relative"><div className="absolute left-[3.5rem] top-0 bottom-0 w-px bg-slate-800 -z-10"></div>{sortedTasks.map((task) => (<div key={task.id} onClick={() => onSelectTask(task.id)} className={`group flex items-center gap-4 p-4 rounded-xl border transition-all active:scale-[0.98] ${isManaging ? 'bg-slate-900 border-slate-700' : task.status === 'completed' ? 'bg-slate-900/50 border-slate-800 opacity-60' : task.status === 'in-progress' ? 'bg-slate-900 border-yellow-700/50 ring-1 ring-yellow-700/20' : 'bg-slate-900 border-slate-800'}`}><div className="w-12 text-xs font-mono text-slate-500 text-right flex flex-col gap-1"><span>{task.start_time}</span><span className="opacity-50">{task.end_time}</span></div><div className={`w-3 h-3 rounded-full shrink-0 ${task.status === 'completed' ? 'bg-green-900' : task.status === 'in-progress' ? 'bg-yellow-600 animate-pulse' : 'bg-slate-700'}`}></div><div className="flex-1"><h3 className={`font-medium ${task.status === 'completed' && !isManaging ? 'line-through text-slate-500' : 'text-slate-200'}`}>{task.title}</h3></div>{isManaging ? <button onClick={(e) => { e.stopPropagation(); onEdit(task); }} className="p-3 text-slate-400 bg-slate-800 rounded-lg hover:text-white"><Icons.Edit size={18} /></button> : task.status !== 'completed' && <Icons.ChevronRight size={18} className="text-slate-700" />}</div>))}{isManaging && <button onClick={onNew} className="w-full py-5 border-2 border-dashed border-slate-800 rounded-xl text-slate-600 font-bold uppercase text-xs flex justify-center items-center gap-2 hover:border-slate-600 hover:text-slate-400 transition-all"><Icons.Plus size={20} /> Add Block</button>}<div className="text-center pt-6"><button onClick={onToggleManage} className={`text-[10px] font-mono flex items-center gap-2 px-6 py-3 rounded-full mx-auto transition-colors ${isManaging ? 'text-yellow-500 bg-yellow-900/20' : 'text-slate-600 hover:text-slate-400'}`}>{isManaging ? <><Icons.Unlock size={12} /> SYSTEM UNLOCKED</> : <><Icons.Lock size={12} /> MANAGE SYSTEM</>}</button></div></div></div>);}
-        function ProgressView({ history }) {const [range, setRange] = useState('week'); const todayStr = getTodayString();const chartData = useMemo(() => {const days = range === 'week' ? 7 : range === 'month' ? 30 : 1; const data = [];for (let i = days - 1; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); const dateStr = d.toLocaleDateString('en-CA'); data.push({ label: range === 'day' ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'narrow' }), score: history[dateStr] || 0, isToday: dateStr === todayStr }); } return data;}, [range, history, todayStr]);const currentScore = history[todayStr] || 0;return (<div className="pt-8 space-y-12 animate-[slideUp_0.5s_ease-out]"><div className="text-center space-y-6"><div className="flex justify-center gap-2">{['day', 'week', 'month'].map(r => <button key={r} onClick={() => setRange(r)} className={`px-5 py-2 rounded-full text-[10px] uppercase font-bold tracking-widest transition-all ${range === r ? 'bg-slate-200 text-slate-900' : 'text-slate-600 bg-slate-900 border border-slate-800'}`}>{r}</button>)}</div><div><h2 className="text-slate-500 text-xs uppercase tracking-widest mb-2">{range === 'day' ? 'Today\'s Score' : 'Trend'}</h2><div className={`text-7xl font-mono font-bold ${currentScore >= 80 ? 'text-green-600' : currentScore >= 50 ? 'text-yellow-600' : 'text-slate-700'}`}>{range === 'day' ? currentScore : Math.round(chartData.reduce((acc, d) => acc + d.score, 0) / chartData.length)}%</div></div></div><div className="h-40 flex items-end gap-1 px-2">{chartData.map((d, i) => <div key={i} className="flex-1 flex flex-col justify-end gap-2 group"><div style={{ height: `${d.score}%` }} className={`w-full rounded-t-sm transition-all duration-700 ${d.score >= 80 ? 'bg-green-900' : d.score >= 50 ? 'bg-yellow-800' : 'bg-red-900'} ${d.isToday ? 'ring-1 ring-white brightness-125' : 'opacity-70'}`}></div><span className="text-[9px] text-center text-slate-600 font-mono hidden xs:block">{d.label[0]}</span></div>)}</div></div>);}
-        function GoalsView({ goals, isManaging, onToggleManage, onEdit, onNew }) {return (<div className="pt-8 space-y-8 animate-[slideUp_0.5s_ease-out]"><div className="flex justify-between items-end border-b border-slate-800 pb-4"><h2 className="text-2xl font-bold text-slate-200">Grand Goals</h2><button onClick={onToggleManage} className="text-xs font-bold uppercase text-slate-500">{isManaging ? 'Done' : 'Edit'}</button></div><div className="space-y-4">{goals.map(goal => (<div key={goal.id} className="p-6 bg-slate-900 border border-slate-800 rounded-xl relative"><div className="flex justify-between items-start mb-4"><h3 className="font-bold text-lg text-slate-200">{goal.title}</h3><span className="text-[10px] font-bold uppercase bg-slate-800 px-3 py-1 rounded text-slate-400">{goal.timeline}</span></div><div className="space-y-2"><p className="text-[10px] text-slate-600 uppercase font-bold tracking-wider">Supported By</p>{goal.linked_systems && goal.linked_systems.map((s, i) => <div key={i} className="flex items-center gap-2 text-sm text-slate-400"><Icons.CheckCircle size={14} className="text-slate-600" /> {s}</div>)}</div>{isManaging && <button onClick={() => onEdit(goal)} className="absolute top-3 right-3 p-2 bg-slate-800 rounded text-slate-400"><Icons.Edit size={16} /></button>}</div>))}{isManaging && <button onClick={onNew} className="w-full py-5 border-2 border-dashed border-slate-800 rounded-xl flex justify-center items-center gap-2 text-slate-500 font-bold uppercase text-xs hover:text-slate-300 hover:border-slate-600"><Icons.Plus size={20} /> Add Goal</button>}</div></div>);}
-        
-        function TaskDrawer({ task, onClose, onUpdateStatus }) {
-            const [seconds, setSeconds] = useState(0); const [isRunning, setIsRunning] = useState(false);
-            useEffect(() => { let i; if (isRunning) { i = setInterval(() => setSeconds(s => s + 1), 1000); if (task.status === 'idle') onUpdateStatus('in-progress'); } return () => clearInterval(i); }, [isRunning, task.status]);
-            const handleComplete = () => { setIsRunning(false); onUpdateStatus('completed'); onClose(); };
-            const renderSingleMedia = (item, idx) => { const { url, label } = item; if (!url) return null; let content = (url.includes('youtube.com')) ? <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${url.split('v=')[1]?.split('&')[0] || url.split('/').pop()}`} title={label} frameBorder="0" allowFullScreen></iframe> : <img src={url} alt={label} className="w-full h-full object-cover" />; return (<div key={idx} className="space-y-1"><div className="aspect-video bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">{content}</div>{label && <p className="text-[10px] text-center uppercase text-slate-500">{label}</p>}</div>); };
-            const mediaList = task.media_items || [];
-            return (<div className="fixed inset-0 z-[60] flex justify-end"><div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={onClose}></div><div className="relative w-full md:w-[600px] bg-slate-950 border-l border-slate-800 h-full flex flex-col animate-[slideInRight_0.3s_ease-out] shadow-2xl"><div className="p-6 pt-12 md:pt-6 border-b border-slate-800 flex justify-between items-start bg-slate-950 sticky top-0 z-10"><div><h2 className="text-2xl md:text-3xl font-bold text-white leading-tight">{task.title}</h2><div className="flex gap-2 text-slate-500 font-mono text-sm mt-2"><span>{task.start_time}</span>—<span>{task.end_time}</span></div></div><button onClick={onClose} className="p-2 bg-slate-900 rounded-full hover:bg-slate-800"><Icons.X size={24} /></button></div><div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32"><div className="flex gap-2 flex-wrap">{task.rules && task.rules.map((r, i) => <span key={i} className="px-3 py-1 bg-red-950/40 border border-red-900/50 text-red-200 text-xs font-bold uppercase rounded">{r}</span>)}</div><div className="space-y-4"><h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold">Execution Steps</h3><ul className="space-y-3">{task.instructions && task.instructions.map(s => <li key={s.id} className="flex gap-4 items-start bg-slate-900/50 p-4 rounded-lg border border-slate-800"><div className="w-1.5 h-1.5 mt-2 bg-slate-400 rounded-full shrink-0"></div><span className="text-slate-300 text-sm leading-relaxed">{s.text}</span></li>)}</ul></div>{mediaList.length > 0 && <div className="space-y-6"><h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold">References</h3>{mediaList.map(renderSingleMedia)}</div>}</div><div className="p-6 border-t border-slate-800 bg-slate-950 pb-safe safe-area-pb"><div className="flex items-center justify-between mb-4"><span className="text-[10px] uppercase text-slate-500 tracking-widest font-bold">Presence Timer</span><span className="font-mono text-4xl font-bold text-slate-100">{Math.floor(seconds / 60).toString().padStart(2, '0')}:{(seconds % 60).toString().padStart(2, '0')}</span></div><div className="flex gap-4 h-16"><button onClick={() => setIsRunning(!isRunning)} className={`flex-1 rounded-xl font-bold flex items-center justify-center gap-2 text-sm uppercase tracking-wide transition-all ${isRunning ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-900'}`}>{isRunning ? <><Icons.Pause /> Pause</> : <><Icons.Play /> Start Execution</>}</button><button onClick={handleComplete} className="w-20 border border-slate-700 bg-slate-800/50 hover:bg-green-900/20 hover:border-green-800 hover:text-green-500 rounded-xl text-slate-400 flex justify-center items-center"><Icons.CheckCircle size={28} /></button></div></div></div></div>);
+
+        function DailyView({ tasks, onSelectTask, isManaging, onToggleManage, onEdit, onNew }) {
+            const today = new Date();
+            const sortedTasks = [...tasks].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+            
+            return (
+                <div className="space-y-8 animate-[fadeIn_0.5s_ease-out]">
+                    <header className="border-l-2 border-slate-700 pl-4 py-2 mt-8 md:mt-0">
+                        <h2 className="text-slate-500 text-xs md:text-sm uppercase tracking-widest font-mono">
+                            {today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                        </h2>
+                        <h1 className="text-lg md:text-xl font-bold text-slate-100 mt-1 leading-tight">
+                            {isManaging ? "Architect Mode: Design your system." : "Today I win if I complete the system."}
+                        </h1>
+                    </header>
+
+                    <div className="space-y-3 relative pb-24">
+                        <div className="absolute left-[3.5rem] top-0 bottom-0 w-px bg-slate-800 -z-10"></div>
+                        {sortedTasks.map((task) => (
+                            <div key={task.id} onClick={() => onSelectTask(task.id)} className={`group flex items-center gap-4 p-4 rounded-lg border transition-all ${isManaging ? 'bg-slate-900 border-slate-700 hover:border-slate-500 cursor-default' : task.status === 'completed' ? 'bg-slate-900/50 border-slate-800 opacity-60 cursor-pointer' : task.status === 'in-progress' ? 'bg-slate-900 border-yellow-700/50 ring-1 ring-yellow-700/20 cursor-pointer' : 'bg-slate-900 border-slate-800 hover:border-slate-600 cursor-pointer active:scale-[0.98]'}`}>
+                                <div className="w-12 text-xs font-mono text-slate-500 text-right flex flex-col gap-1"><span>{task.start_time}</span><span className="opacity-50">{task.end_time}</span></div>
+                                <div className={`w-3 h-3 rounded-full shrink-0 transition-colors duration-500 ${task.status === 'completed' ? 'bg-green-900' : task.status === 'in-progress' ? 'bg-yellow-600 animate-pulse' : 'bg-slate-700'}`}></div>
+                                <div className="flex-1"><h3 className={`font-medium text-sm md:text-base ${task.status === 'completed' && !isManaging ? 'line-through text-slate-500' : 'text-slate-200'}`}>{task.title}</h3></div>
+                                {isManaging ? <button onClick={(e) => { e.stopPropagation(); onEdit(task); }} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded"><Icons.Edit size={16} /></button> : task.status === 'completed' ? <Icons.CheckCircle size={18} className="text-green-800" /> : <Icons.ChevronRight size={18} className="text-slate-700 group-hover:text-slate-400" />}
+                            </div>
+                        ))}
+                        {isManaging && <button onClick={onNew} className="w-full py-4 border-2 border-dashed border-slate-800 rounded-lg text-slate-600 hover:text-slate-400 hover:border-slate-600 flex justify-center items-center gap-2 transition-all"><Icons.Plus size={20} /> <span className="uppercase text-xs font-bold tracking-widest">Add New Block</span></button>}
+                        <div className="text-center pt-8"><button onClick={onToggleManage} className={`text-[10px] font-mono flex items-center justify-center gap-2 px-4 py-2 rounded-full mx-auto transition-colors ${isManaging ? 'text-yellow-500 bg-yellow-900/20' : 'text-slate-600 hover:text-slate-400'}`}>{isManaging ? <><Icons.Unlock size={12} /> SYSTEM UNLOCKED</> : <><Icons.Lock size={12} /> MANAGE SYSTEM</>}</button></div>
+                    </div>
+                </div>
+            );
         }
 
-        function TaskEditor({ task, onSave, onDelete, onClose }) {const [formData, setFormData] = useState({ id: task.id, title: task.title, start_time: task.start_time || '', end_time: task.end_time || '', instructions: task.instructions || [], rules: task.rules || [], media_items: task.media_items || [] }); const handleChange = (f, v) => setFormData(p => ({...p, [f]: v})); const handleListChange = (field, idx, val) => { const list = [...formData[field]]; if (field === 'instructions') list[idx].text = val; else list[idx] = val; setFormData(p => ({...p, [field]: list})); }; const addListItem = (field) => { const item = field === 'instructions' ? { id: Date.now(), text: '' } : ''; setFormData(p => ({...p, [field]: [...p[field], item]})); }; const addMedia = () => setFormData(p => ({ ...p, media_items: [...p.media_items, { type: 'image', url: '', label: '' }] })); const updateMedia = (idx, field, val) => { const newMedia = [...formData.media_items]; newMedia[idx][field] = val; setFormData(p => ({ ...p, media_items: newMedia })); }; const removeMedia = (idx) => setFormData(p => ({ ...p, media_items: p.media_items.filter((_, i) => i !== idx) })); return (<div className="fixed inset-0 z-[70] flex justify-center items-end md:items-center p-0 md:p-4 bg-black/80 backdrop-blur-sm"><div className="bg-slate-900 w-full md:max-w-lg rounded-t-2xl md:rounded-xl border border-slate-700 flex flex-col h-[90dvh] md:max-h-[85vh] animate-[slideUp_0.3s_ease-out]"><div className="p-4 border-b border-slate-700 flex justify-between items-center"><h2 className="font-bold text-lg">{task.id === 'new' ? 'New Block' : 'Edit Block'}</h2><button onClick={onClose} className="p-2 bg-slate-800 rounded-full"><Icons.X size={20} /></button></div><div className="flex-1 overflow-y-auto p-5 space-y-6 pb-safe"><div className="space-y-4"><div><label className="block text-xs uppercase text-slate-500 mb-1">Title</label><input value={formData.title} onChange={e => handleChange('title', e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3" placeholder="Habit Name" /></div><div className="flex gap-4"><div className="flex-1"><label className="block text-xs uppercase text-slate-500 mb-1">Start</label><input type="time" value={formData.start_time} onChange={e => handleChange('start_time', e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3" /></div><div className="flex-1"><label className="block text-xs uppercase text-slate-500 mb-1">End</label><input type="time" value={formData.end_time} onChange={e => handleChange('end_time', e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3" /></div></div></div><div><label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between"><span>Media</span><button onClick={addMedia} className="text-green-500 font-bold text-[10px] bg-green-900/20 px-2 py-1 rounded">+ ADD</button></label><div className="space-y-3">{formData.media_items.map((item, i) => (<div key={i} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2 relative"><button onClick={() => removeMedia(i)} className="absolute top-2 right-2 text-slate-500"><Icons.X size={16} /></button><select value={item.type} onChange={e => updateMedia(i, 'type', e.target.value)} className="w-full p-2 text-xs bg-slate-900 rounded border border-slate-700"><option value="image">Image</option><option value="video">Video</option></select><input value={item.url} onChange={e => updateMedia(i, 'url', e.target.value)} className="w-full p-2 rounded text-sm bg-slate-900 border border-slate-700" placeholder="URL..." /><input value={item.label} onChange={e => updateMedia(i, 'label', e.target.value)} className="w-full p-2 rounded text-sm bg-slate-900 border border-slate-700" placeholder="Label" /></div>))}</div></div><div><label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between"><span>Steps</span><button onClick={() => addListItem('instructions')} className="text-green-500 font-bold text-[10px] bg-green-900/20 px-2 py-1 rounded">+ ADD</button></label><div className="space-y-2">{formData.instructions.map((inst, i) => <div key={i} className="flex gap-2"><input value={inst.text} onChange={e => handleListChange('instructions', i, e.target.value)} className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-sm" /><button onClick={() => setFormData(p => ({...p, instructions: p.instructions.filter((_, idx) => idx !== i)}))} className="text-red-500"><Icons.X size={18} /></button></div>)}</div></div><div><label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between"><span>Rules</span><button onClick={() => addListItem('rules')} className="text-green-500 font-bold text-[10px] bg-green-900/20 px-2 py-1 rounded">+ ADD</button></label><div className="space-y-2">{formData.rules.map((r, i) => <div key={i} className="flex gap-2"><input value={r} onChange={e => handleListChange('rules', i, e.target.value)} className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-sm" /><button onClick={() => setFormData(p => ({...p, rules: p.rules.filter((_, idx) => idx !== i)}))} className="text-red-500"><Icons.X size={18} /></button></div>)}</div></div></div><div className="p-4 border-t border-slate-800 bg-slate-900 pb-safe flex justify-between gap-4">{task.id !== 'new' && <button onClick={() => onDelete(task.id)} className="px-4 py-3 rounded-lg border border-red-900 text-red-500 text-xs font-bold uppercase">Delete</button>}<button onClick={() => onSave(formData)} className="flex-1 bg-slate-100 text-slate-900 px-6 py-3 rounded-lg font-bold hover:bg-white text-sm uppercase">Save Block</button></div></div></div>); }
-        function GoalEditor({ goal, onSave, onDelete, onClose }) { const [formData, setFormData] = useState({...goal}); const [linkedStr, setLinkedStr] = useState(goal.linked_systems ? goal.linked_systems.join(', ') : ''); const handleSave = () => { const systems = linkedStr.split(',').map(s => s.trim()).filter(s => s); onSave({ ...formData, linked_systems: systems }); }; return (<div className="fixed inset-0 z-[70] flex justify-center items-end md:items-center p-0 md:p-4 bg-black/80 backdrop-blur-sm"><div className="bg-slate-900 w-full md:max-w-lg rounded-t-2xl md:rounded-xl border border-slate-700 flex flex-col h-[auto] max-h-[90dvh] animate-[slideUp_0.3s_ease-out]"><div className="p-4 border-b border-slate-700 flex justify-between items-center"><h2 className="font-bold">Edit Goal</h2><button onClick={onClose}><Icons.X/></button></div><div className="p-6 space-y-6 overflow-y-auto"><div><label className="block text-xs uppercase text-slate-500 mb-1">Title</label><input value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3" /></div><div><label className="block text-xs uppercase text-slate-500 mb-1">Timeline</label><input value={formData.timeline} onChange={e => setFormData({...formData, timeline: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3" /></div><div><label className="block text-xs uppercase text-slate-500 mb-1">Linked Systems</label><textarea rows="3" value={linkedStr} onChange={e => setLinkedStr(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3" /></div></div><div className="p-4 border-t border-slate-800 bg-slate-900 pb-safe flex justify-between gap-4">{goal.id !== 'new' && <button onClick={() => onDelete(goal.id)} className="px-4 py-3 rounded-lg border border-red-900 text-red-500 text-xs font-bold uppercase">Delete</button>}<button onClick={handleSave} className="flex-1 bg-slate-100 text-slate-900 px-6 py-3 rounded-lg font-bold hover:bg-white text-sm uppercase">Save Goal</button></div></div></div>); }
-        function NavButton({ icon: IconComponent, label, active, onClick }) { return ( <button onClick={onClick} className={`flex flex-col items-center gap-1 p-2 rounded-lg w-16 transition-colors ${active ? 'text-slate-100' : 'text-slate-600'}`}><IconComponent size={24} /><span className="text-[10px] uppercase font-bold tracking-wide">{label}</span></button> ); }
+        function ProgressView({ history }) {
+            const [range, setRange] = useState('week'); 
+            const todayStr = getTodayString();
+            
+            const chartData = useMemo(() => {
+                const days = range === 'week' ? 7 : range === 'month' ? 30 : 1;
+                const data = [];
+                for (let i = days - 1; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    const dateStr = d.toLocaleDateString('en-CA');
+                    const label = range === 'day' ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'narrow' });
+                    data.push({ 
+                        label, 
+                        score: history[dateStr] || 0,
+                        isToday: dateStr === todayStr
+                    });
+                }
+                return data;
+            }, [range, history, todayStr]);
+
+            const currentScore = history[todayStr] || 0;
+
+            return (
+                <div className="pt-12 space-y-12 animate-[slideUp_0.5s_ease-out]">
+                    <div className="text-center space-y-4">
+                        <div className="flex justify-center gap-2 mb-6">
+                            {['day', 'week', 'month'].map(r => (
+                                <button key={r} onClick={() => setRange(r)} className={`px-4 py-1 rounded text-[10px] uppercase font-bold tracking-widest transition-colors ${range === r ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-600 hover:text-slate-400'}`}>{r}</button>
+                            ))}
+                        </div>
+                        <h2 className="text-slate-400 text-sm">{range === 'day' ? 'Today\'s Score' : range === 'week' ? '7-Day Trend' : '30-Day Trend'}</h2>
+                        <div className={`text-6xl font-mono font-bold ${currentScore >= 80 ? 'text-green-700' : currentScore >= 50 ? 'text-yellow-700' : 'text-slate-700'}`}>{range === 'day' ? currentScore : Math.round(chartData.reduce((acc, d) => acc + d.score, 0) / chartData.length)}%</div>
+                    </div>
+                    <div className="space-y-4">
+                        <div className="flex gap-1 h-32 items-end">
+                            {chartData.map((d, i) => (
+                                <div key={i} className="flex-1 flex flex-col justify-end gap-2 group relative">
+                                    <div style={{ height: `${d.score}%` }} className={`w-full rounded-sm opacity-80 transition-all duration-700 ${d.score >= 80 ? 'bg-green-900' : d.score >= 50 ? 'bg-yellow-800' : 'bg-red-900'} ${d.isToday ? 'ring-1 ring-white' : ''}`}></div>
+                                    <span className="text-[10px] text-center text-slate-600 font-mono">{d.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="p-4 border border-slate-800 bg-slate-900/50 rounded text-sm text-slate-500 text-center italic">"You are not tracking results, only system adherence."</div>
+                </div>
+            );
+        }
+
+        function GoalsView({ goals, isManaging, onToggleManage, onEdit, onNew }) {
+            return (
+                <div className="pt-12 space-y-8 animate-[slideUp_0.5s_ease-out] pb-24">
+                   <div className="flex justify-between items-end border-b border-slate-800 pb-4">
+                       <h2 className="text-xl font-bold text-slate-200">Grand Goals</h2>
+                       <button onClick={onToggleManage} className="text-[10px] uppercase font-bold text-slate-600 hover:text-slate-400">{isManaging ? 'Done Editing' : 'Edit Goals'}</button>
+                   </div>
+                   <div className="space-y-6">
+                     {goals.map(goal => (
+                         <div key={goal.id} className="p-5 bg-slate-900 border border-slate-800 rounded-lg group relative">
+                            <div className="flex justify-between items-start mb-3">
+                                <h3 className="font-bold text-slate-200">{goal.title}</h3>
+                                <span className="text-[10px] uppercase bg-slate-800 px-2 py-1 rounded text-slate-400 font-bold">{goal.timeline}</span>
+                            </div>
+                            <div className="mt-4 space-y-2">
+                                <p className="text-[10px] text-slate-600 uppercase font-bold tracking-wider">Supported By</p>
+                                {goal.linked_systems && goal.linked_systems.map((s, i) => <div key={i} className="flex items-center gap-2 text-sm text-slate-400"><Icons.CheckCircle size={12} className="text-slate-600" /> {s}</div>)}
+                            </div>
+                            {isManaging && <button onClick={() => onEdit(goal)} className="absolute top-2 right-2 p-2 bg-slate-800 rounded text-slate-400 hover:text-white"><Icons.Edit size={14} /></button>}
+                         </div>
+                     ))}
+                     {isManaging && <button onClick={onNew} className="w-full py-4 border-2 border-dashed border-slate-800 rounded-lg text-slate-600 hover:text-slate-400 hover:border-slate-600 flex justify-center items-center gap-2"><Icons.Plus size={20} /> <span className="uppercase text-xs font-bold tracking-widest">Add New Goal</span></button>}
+                   </div>
+                </div>
+            );
+        }
+
+        // --- UPDATED TASK DRAWER (Multi-Media) ---
+        function TaskDrawer({ task, onClose, onUpdateStatus }) {
+            const [seconds, setSeconds] = useState(0);
+            const [isRunning, setIsRunning] = useState(false);
+            useEffect(() => {
+                let interval;
+                if (isRunning) {
+                    interval = setInterval(() => setSeconds(s => s + 1), 1000);
+                    if (task.status === 'idle') onUpdateStatus('in-progress');
+                }
+                return () => clearInterval(interval);
+            }, [isRunning, task.status]);
+            
+            const handleComplete = () => { setIsRunning(false); onUpdateStatus('completed'); onClose(); };
+
+            const renderSingleMedia = (item, idx) => {
+                const { type, url, label } = item;
+                if (!url) return null;
+
+                let content;
+                if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                    const videoId = url.split('v=')[1]?.split('&')[0] || url.split('/').pop();
+                    content = <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${videoId}`} title={label} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>;
+                } else {
+                    content = <img src={url} alt={label} className="w-full h-full object-cover" />;
+                }
+
+                return (
+                    <div key={idx} className="space-y-1">
+                         <div className="aspect-video bg-slate-900 border border-slate-800 rounded flex items-center justify-center relative overflow-hidden">
+                             {content}
+                         </div>
+                         {label && <p className="text-[10px] text-slate-500 font-mono text-center uppercase">{label}</p>}
+                    </div>
+                );
+            };
+
+            const mediaList = task.media_items || [];
+
+            return (
+                <div className="fixed inset-0 z-[60] flex justify-end">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
+                    <div className="relative w-full md:w-[600px] bg-slate-950 border-l border-slate-800 h-full flex flex-col shadow-2xl animate-[slideInRight_0.3s_ease-out]">
+                        <div className="p-6 border-b border-slate-800 flex justify-between items-start bg-slate-900">
+                            <div><h2 className="text-xl md:text-2xl font-bold text-white">{task.title}</h2><div className="flex gap-2 text-slate-500 font-mono text-sm mt-1"><span>{task.start_time}</span><span>—</span><span>{task.end_time}</span></div></div>
+                            <button onClick={onClose} className="text-slate-500 hover:text-white p-2">Close</button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                            <div className="flex gap-2 flex-wrap">{task.rules && task.rules.map((rule, i) => <span key={i} className="px-3 py-1 bg-red-950/50 text-red-200 text-xs font-bold uppercase rounded border border-red-900/50">{rule}</span>)}</div>
+                            <div className="space-y-4">
+                                <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold">Execution Steps</h3>
+                                <ul className="space-y-3">{task.instructions && task.instructions.map((step) => <li key={step.id} className="flex gap-4 items-start bg-slate-900 p-4 rounded border border-slate-800"><div className="w-1.5 h-1.5 mt-2 bg-slate-500 rounded-full shrink-0"></div><span className="text-slate-300 leading-relaxed text-sm md:text-base">{step.text}</span></li>)}</ul>
+                            </div>
+                            
+                            {/* Render Multiple Media Items */}
+                            {mediaList.length > 0 && (
+                                <div className="space-y-6">
+                                     <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold">References</h3>
+                                     {mediaList.map((item, idx) => renderSingleMedia(item, idx))}
+                                </div>
+                            )}
+
+                            {mediaList.length === 0 && (
+                                <div className="aspect-video bg-slate-900 border border-slate-800 rounded flex items-center justify-center flex-col gap-2 text-slate-600">
+                                    <Icons.Image size={32} />
+                                    <span className="text-xs font-mono uppercase">No Media Attached</span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-6 border-t border-slate-800 bg-slate-900 pb-8 md:pb-6">
+                            <div className="flex items-center justify-between mb-4"><span className="text-[10px] uppercase text-slate-500 tracking-widest font-bold">Presence Timer</span><span className="font-mono text-3xl font-bold text-slate-100">{Math.floor(seconds / 60).toString().padStart(2, '0')}:{(seconds % 60).toString().padStart(2, '0')}</span></div>
+                            <div className="flex gap-4 flex-col md:flex-row">
+                                <button onClick={() => setIsRunning(!isRunning)} className={`flex-1 py-4 rounded font-bold flex items-center justify-center gap-2 transition-all ${isRunning ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-900 hover:bg-white'}`}>{isRunning ? <><Icons.Pause size={18} /> PAUSE</> : <><Icons.Play size={18} /> START EXECUTION</>}</button>
+                                <button onClick={handleComplete} className="py-4 md:py-0 px-8 border border-slate-700 bg-slate-800/50 hover:bg-green-900/20 hover:border-green-800 hover:text-green-500 rounded text-slate-400 transition-colors flex justify-center items-center"><Icons.CheckCircle size={24} /></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- UPDATED TASK EDITOR (Multi-Media) ---
+        function TaskEditor({ task, onSave, onDelete, onClose }) {
+            const [formData, setFormData] = useState({
+                id: task.id,
+                title: task.title,
+                start_time: task.start_time || '', 
+                end_time: task.end_time || '',
+                instructions: task.instructions || [],
+                rules: task.rules || [],
+                // Ensure media_items is an array
+                media_items: task.media_items || []
+            });
+            
+            const handleChange = (f, v) => setFormData(prev => ({...prev, [f]: v}));
+            
+            const handleListChange = (field, idx, val) => {
+                const list = [...formData[field]];
+                if (field === 'instructions') list[idx].text = val;
+                else list[idx] = val;
+                setFormData(prev => ({...prev, [field]: list}));
+            };
+
+            const addListItem = (field) => {
+                const item = field === 'instructions' ? { id: Date.now(), text: '' } : '';
+                setFormData(prev => ({...prev, [field]: [...prev[field], item]}));
+            };
+
+            // MEDIA HANDLERS
+            const addMedia = () => {
+                setFormData(prev => ({
+                    ...prev, 
+                    media_items: [...prev.media_items, { type: 'image', url: '', label: '' }]
+                }));
+            };
+
+            const updateMedia = (idx, field, val) => {
+                const newMedia = [...formData.media_items];
+                newMedia[idx][field] = val;
+                setFormData(prev => ({ ...prev, media_items: newMedia }));
+            };
+
+            const removeMedia = (idx) => {
+                const newMedia = formData.media_items.filter((_, i) => i !== idx);
+                setFormData(prev => ({ ...prev, media_items: newMedia }));
+            };
+
+            return (
+                <div className="fixed inset-0 z-[70] flex justify-center items-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-slate-900 w-full max-w-lg rounded-xl shadow-2xl border border-slate-700 flex flex-col max-h-[90vh]">
+                        <div className="p-4 border-b border-slate-700 flex justify-between items-center"><h2 className="font-bold text-slate-100">{task.id === 'new' ? 'Create Block' : 'Edit Block'}</h2><button onClick={onClose} className="text-slate-500 hover:text-white"><Icons.X size={20} /></button></div>
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            <div className="space-y-4">
+                                <div><label className="block text-xs uppercase text-slate-500 mb-1">Title</label><input value={formData.title} onChange={e => handleChange('title', e.target.value)} className="w-full p-2 rounded" placeholder="Habit Name" /></div>
+                                <div className="flex gap-4">
+                                    <div className="flex-1"><label className="block text-xs uppercase text-slate-500 mb-1">Start</label><input type="time" value={formData.start_time} onChange={e => handleChange('start_time', e.target.value)} className="w-full p-2 rounded" /></div>
+                                    <div className="flex-1"><label className="block text-xs uppercase text-slate-500 mb-1">End</label><input type="time" value={formData.end_time} onChange={e => handleChange('end_time', e.target.value)} className="w-full p-2 rounded" /></div>
+                                </div>
+                            </div>
+                            
+                            {/* MEDIA LIST SECTION */}
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between"><span>Media Attachments</span><button onClick={addMedia} className="text-green-500 font-bold text-[10px]">+ ADD MEDIA</button></label>
+                                <div className="space-y-3">
+                                    {formData.media_items.map((item, i) => (
+                                        <div key={i} className="bg-slate-800 p-3 rounded border border-slate-700 space-y-2 relative">
+                                            <button onClick={() => removeMedia(i)} className="absolute top-2 right-2 text-slate-500 hover:text-red-500"><Icons.X size={16} /></button>
+                                            
+                                            <select value={item.type} onChange={e => updateMedia(i, 'type', e.target.value)} className="w-full p-1 text-xs bg-slate-900 rounded border border-slate-700 mb-1">
+                                                <option value="image">Image</option>
+                                                <option value="video">Video / YouTube</option>
+                                            </select>
+                                            
+                                            <input value={item.url} onChange={e => updateMedia(i, 'url', e.target.value)} className="w-full p-2 rounded text-sm bg-slate-900" placeholder="URL (YouTube or Image Link)..." />
+                                            <input value={item.label} onChange={e => updateMedia(i, 'label', e.target.value)} className="w-full p-2 rounded text-sm bg-slate-900" placeholder="Label (e.g. Reference)" />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between"><span>Execution Steps</span><button onClick={() => addListItem('instructions')} className="text-green-500 font-bold text-[10px]">+ ADD</button></label>
+                                <div className="space-y-2">{formData.instructions.map((inst, i) => <div key={i} className="flex gap-2"><input value={inst.text} onChange={e => handleListChange('instructions', i, e.target.value)} className="flex-1 p-2 rounded text-sm bg-slate-800" /><button onClick={() => setFormData(p => ({...p, instructions: p.instructions.filter((_, idx) => idx !== i)}))} className="text-red-500"><Icons.X size={16} /></button></div>)}</div>
+                            </div>
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 mb-2 flex justify-between"><span>Rules</span><button onClick={() => addListItem('rules')} className="text-green-500 font-bold text-[10px]">+ ADD</button></label>
+                                <div className="space-y-2">{formData.rules.map((r, i) => <div key={i} className="flex gap-2"><input value={r} onChange={e => handleListChange('rules', i, e.target.value)} className="flex-1 p-2 rounded text-sm bg-slate-800" /><button onClick={() => setFormData(p => ({...p, rules: p.rules.filter((_, idx) => idx !== i)}))} className="text-red-500"><Icons.X size={16} /></button></div>)}</div>
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-slate-700 bg-slate-850 flex justify-between">
+                            {task.id !== 'new' ? <button onClick={() => onDelete(task.id)} className="text-red-500 text-xs font-bold hover:text-red-400 flex items-center gap-1"><Icons.Trash size={14} /> DELETE</button> : <div></div>}
+                            <button onClick={() => onSave(formData)} className="bg-slate-100 text-slate-900 px-6 py-2 rounded font-bold hover:bg-white text-sm">SAVE</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function GoalEditor({ goal, onSave, onDelete, onClose }) {
+            const [formData, setFormData] = useState({...goal});
+            const [linkedStr, setLinkedStr] = useState(goal.linked_systems ? goal.linked_systems.join(', ') : '');
+
+            const handleSave = () => {
+                const systems = linkedStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
+                onSave({ ...formData, linked_systems: systems });
+            };
+
+            return (
+                <div className="fixed inset-0 z-[70] flex justify-center items-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-slate-900 w-full max-w-lg rounded-xl shadow-2xl border border-slate-700 flex flex-col">
+                        <div className="p-4 border-b border-slate-700 flex justify-between items-center"><h2 className="font-bold text-slate-100">{goal.id === 'new' ? 'Create Goal' : 'Edit Goal'}</h2><button onClick={onClose} className="text-slate-500 hover:text-white"><Icons.X size={20} /></button></div>
+                        <div className="p-6 space-y-6">
+                            <div><label className="block text-xs uppercase text-slate-500 mb-1">Goal Title</label><input value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full p-2 rounded" /></div>
+                            <div><label className="block text-xs uppercase text-slate-500 mb-1">Timeline</label><input value={formData.timeline} onChange={e => setFormData({...formData, timeline: e.target.value})} className="w-full p-2 rounded" /></div>
+                            <div><label className="block text-xs uppercase text-slate-500 mb-1">Linked Systems</label><textarea rows="3" value={linkedStr} onChange={e => setLinkedStr(e.target.value)} className="w-full p-2 rounded bg-slate-800 resize-none" /></div>
+                        </div>
+                        <div className="p-4 border-t border-slate-700 bg-slate-850 flex justify-between">
+                            {goal.id !== 'new' ? <button onClick={() => onDelete(goal.id)} className="text-red-500 text-xs font-bold hover:text-red-400 flex items-center gap-1"><Icons.Trash size={14} /> DELETE</button> : <div></div>}
+                            <button onClick={handleSave} className="bg-slate-100 text-slate-900 px-6 py-2 rounded font-bold hover:bg-white text-sm">SAVE</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function NavButton({ icon: IconComponent, label, active, onClick }) {
+            return ( <button onClick={onClick} className={`flex flex-col items-center gap-1 p-2 rounded transition-colors ${active ? 'text-slate-100' : 'text-slate-600 hover:text-slate-400'}`}><IconComponent size={20} /><span className="text-[10px] uppercase tracking-wider font-bold">{label}</span></button> );
+        }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
