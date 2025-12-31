@@ -10,7 +10,6 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     
     <!-- Styles -->
@@ -62,26 +61,27 @@
 
         const DAYS_MAP = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-        // --- SETUP ---
-        const SUPABASE_URL = 'https://syrhuxxryctrzjdzexnx.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJstXBhYmFzZSIsInJlZiI6InN5cmh1eHhyeWN0cnpqZHpleG54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzIyMjgzMjEsImV4cCI6MjA0NzgwNDMyMX0.6ct6nRHK7VfDGxHdK3pXstFuh3lS3PQuDIljM0HozNU';
-        
+        // --- LOCAL STORAGE SETUP ---
+        const STORAGE_KEYS = {
+            TASKS: 'identity_tasks',
+            GOALS: 'identity_goals',
+            HISTORY: 'identity_history',
+            COUNTS: 'identity_counts',
+            SETTINGS: 'identity_settings',
+            THEME: 'identity_theme',
+            LANGUAGE: 'identity_lang',
+            ENCRYPTION_KEY: 'identity_encryption_key'
+        };
+
         function getOrSetLocal(key, generator) {
             let val = localStorage.getItem(key);
             if (!val) { val = generator(); localStorage.setItem(key, val); }
             return val;
         }
-        const SESSION_ID = getOrSetLocal('identity_session_id', () => crypto.randomUUID());
-        const ENCRYPTION_KEY = getOrSetLocal('identity_encryption_key', () => {
+
+        const ENCRYPTION_KEY = getOrSetLocal(STORAGE_KEYS.ENCRYPTION_KEY, () => {
             const a = new Uint8Array(32); window.crypto.getRandomValues(a);
             return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
-        });
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { 
-            global: { headers: { 
-                'x-session-id': SESSION_ID,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=representation'
-            } } 
         });
 
         // --- CRYPTO HELPERS ---
@@ -119,7 +119,7 @@
                 if (!c) return [];
                 if (typeof c !== 'string' || c === '') return [];
                 
-                // If it's already an array (shouldn't happen with proper encryption)
+                // If it's already an array (local storage data)
                 if (Array.isArray(c)) return c.map(item => ({ 
                     text: item.text || item || '', 
                     type: item.type || '', 
@@ -210,8 +210,8 @@
             const [lockDate, setLockDate] = useState(null);
             const [activeTimer, setActiveTimer] = useState({ id: null, seconds: 0, isRunning: false });
             
-            const [theme, setTheme] = useState(localStorage.getItem('identity_theme') || 'midnight');
-            const [lang, setLang] = useState(localStorage.getItem('identity_lang') || 'en');
+            const [theme, setTheme] = useState(localStorage.getItem(STORAGE_KEYS.THEME) || 'midnight');
+            const [lang, setLang] = useState(localStorage.getItem(STORAGE_KEYS.LANGUAGE) || 'en');
             const t = (k) => LANG[lang][k] || k;
             
             const isLocked = useMemo(() => lockDate && new Date(lockDate) > new Date(), [lockDate]);
@@ -219,8 +219,8 @@
             useEffect(() => {
                 document.documentElement.setAttribute('data-theme', theme);
                 document.dir = lang === 'ar' ? 'rtl' : 'ltr';
-                localStorage.setItem('identity_theme', theme);
-                localStorage.setItem('identity_lang', lang);
+                localStorage.setItem(STORAGE_KEYS.THEME, theme);
+                localStorage.setItem(STORAGE_KEYS.LANGUAGE, lang);
             }, [theme, lang]);
 
             useEffect(() => { fetchData(); }, []);
@@ -230,33 +230,33 @@
                 try {
                     const today = getTodayString();
                     
-                    const { data: sData, error: sError } = await supabase.from('identity_settings').select('*').eq('session_id', SESSION_ID).maybeSingle();
-                    if (sError) {
-                        const { error: createError } = await supabase.from('identity_settings').upsert(
-                            { session_id: SESSION_ID, locked_until: null }, 
-                            { onConflict: 'session_id' }
-                        );
-                    } else if (sData) {
-                        setLockDate(sData.locked_until);
-                    }
+                    // Load settings
+                    const settings = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{}');
+                    setLockDate(settings.locked_until || null);
 
-                    const { data: tData, error: tError } = await supabase.from('identity_tasks').select('*').eq('session_id', SESSION_ID).order('start_time', { ascending: true });
+                    // Load tasks
+                    const savedTasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS) || '[]');
                     
-                    if (tData) {
+                    if (savedTasks.length > 0) {
                         const tasksToUpdate = [];
-                        const processed = tData.map(task => {
+                        const processed = savedTasks.map(task => {
                             if (task.last_active_date !== today) {
-                                tasksToUpdate.push({ id: task.id, status: 'idle', consequence_status: 'none', last_active_date: today });
+                                tasksToUpdate.push({ ...task, status: 'idle', consequence_status: 'none', last_active_date: today });
                                 return { ...task, status: 'idle', consequence_status: 'none', last_active_date: today };
                             }
                             return task;
                         });
                         
-                        if (tasksToUpdate.length > 0) supabase.from('identity_tasks').upsert(tasksToUpdate, { onConflict: 'id' }).then();
+                        if (tasksToUpdate.length > 0) {
+                            const updatedTasks = savedTasks.map(task => {
+                                const updatedTask = tasksToUpdate.find(t => t.id === task.id);
+                                return updatedTask || task;
+                            });
+                            localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(updatedTasks));
+                        }
                         
-                        // FIXED: Proper schedule_days parsing
+                        // Parse schedule_days properly
                         setTasks(processed.map(x => {
-                            // Parse schedule_days properly
                             let scheduleDays = [0,1,2,3,4,5,6]; // Default to all days
                             
                             if (x.schedule_days) {
@@ -270,10 +270,8 @@
                                         }
                                     } catch (e) {
                                         console.log('Error parsing schedule_days:', e);
-                                        // Keep default if parsing fails
                                     }
                                 }
-                                // Ensure all values are numbers
                                 scheduleDays = scheduleDays.map(d => Number(d));
                             }
                             
@@ -285,14 +283,15 @@
                                 media_items: decryptList(x.media_items) || [],
                                 reward_text: decrypt(x.reward_text) || '',
                                 punishment_text: decrypt(x.punishment_text) || '',
-                                schedule_days: scheduleDays // Use parsed schedule
+                                schedule_days: scheduleDays
                             };
                         }));
                     }
 
-                    const { data: gData } = await supabase.from('identity_goals').select('*').eq('session_id', SESSION_ID);
-                    if (gData) {
-                        setGoals(gData.map(g => ({ 
+                    // Load goals
+                    const savedGoals = JSON.parse(localStorage.getItem(STORAGE_KEYS.GOALS) || '[]');
+                    if (savedGoals.length > 0) {
+                        setGoals(savedGoals.map(g => ({ 
                             ...g, 
                             title: decrypt(g.title) || '',
                             timeline: decrypt(g.timeline) || '',
@@ -300,15 +299,13 @@
                         })));
                     }
 
-                    const { data: hData } = await supabase.from('identity_history').select('*').eq('session_id', SESSION_ID);
-                    if (hData) setHistory(hData);
+                    // Load history
+                    const savedHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.HISTORY) || '[]');
+                    setHistory(savedHistory);
 
-                    const { data: cData } = await supabase.from('identity_counts').select('*').eq('session_id', SESSION_ID);
-                    if (cData) {
-                        const cObj = {}; 
-                        cData.forEach(c => cObj[c.date] = { r_earn: c.rewards_earned, r_take: c.rewards_count, p_inc: c.punishments_incurred, p_pay: c.punishments_count });
-                        setCounts(cObj);
-                    }
+                    // Load counts
+                    const savedCounts = JSON.parse(localStorage.getItem(STORAGE_KEYS.COUNTS) || '{}');
+                    setCounts(savedCounts);
                 } catch (error) {
                     console.error("Fetch error:", error);
                 } finally {
@@ -322,86 +319,100 @@
                 return Math.round((completed / currentTasks.length) * 100);
             };
 
-            const updateStats = async (currentTasks) => {
+            const updateStats = (currentTasks) => {
                 try {
                     const today = getTodayString();
                     const score = calculateScore(currentTasks);
                     
-                    await supabase.from('identity_history').upsert({ date: today, score, session_id: SESSION_ID }, { onConflict: 'date,session_id' });
-                    
-                    setHistory(prev => {
-                        const existIndex = prev.findIndex(h => h.date === today);
-                        if (existIndex > -1) { const updated = [...prev]; updated[existIndex].score = score; return updated; }
-                        return [...prev, { date: today, score }];
-                    });
+                    // Update history
+                    const currentHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.HISTORY) || '[]');
+                    const historyIndex = currentHistory.findIndex(h => h.date === today);
+                    if (historyIndex > -1) {
+                        currentHistory[historyIndex].score = score;
+                    } else {
+                        currentHistory.push({ date: today, score });
+                    }
+                    localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(currentHistory));
+                    setHistory(currentHistory);
 
+                    // Update counts
                     const r_earn = currentTasks.filter(t => t.status === 'completed' && t.reward_text).length;
                     const r_take = currentTasks.filter(t => t.consequence_status === 'reward_taken').length;
                     const p_inc = currentTasks.filter(t => t.status === 'failed' && t.punishment_text).length;
                     const p_pay = currentTasks.filter(t => t.consequence_status === 'punishment_paid').length;
                     
-                    await supabase.from('identity_counts').upsert({ date: today, session_id: SESSION_ID, rewards_earned: r_earn, rewards_count: r_take, punishments_incurred: p_inc, punishments_count: p_pay }, { onConflict: 'date,session_id' });
-                    
-                    setCounts(prev => ({ ...prev, [today]: { r_earn, r_take, p_inc, p_pay } }));
+                    const currentCounts = JSON.parse(localStorage.getItem(STORAGE_KEYS.COUNTS) || '{}');
+                    currentCounts[today] = { r_earn, r_take, p_inc, p_pay };
+                    localStorage.setItem(STORAGE_KEYS.COUNTS, JSON.stringify(currentCounts));
+                    setCounts(currentCounts);
                 } catch (error) { console.error("Update stats error:", error); }
             };
 
-            const handleSaveTask = async (task) => {
+            const saveTasksToStorage = (tasksArray) => {
+                // Encrypt sensitive data before saving
+                const tasksToSave = tasksArray.map(task => ({
+                    ...task,
+                    title: encrypt(task.title || ''),
+                    instructions: encryptList(task.instructions || []),
+                    rules: encryptList(task.rules || []),
+                    media_items: encryptList(task.media_items || []),
+                    reward_text: encrypt(task.reward_text || ''),
+                    punishment_text: encrypt(task.punishment_text || '')
+                }));
+                localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasksToSave));
+            };
+
+            const saveGoalsToStorage = (goalsArray) => {
+                // Encrypt sensitive data before saving
+                const goalsToSave = goalsArray.map(goal => ({
+                    ...goal,
+                    title: encrypt(goal.title || ''),
+                    timeline: encrypt(goal.timeline || ''),
+                    linked_systems: encryptList(goal.linked_systems || [])
+                }));
+                localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(goalsToSave));
+            };
+
+            const handleSaveTask = (task) => {
                 try {
-                    // Ensure schedule_days is properly formatted for Supabase
                     let scheduleDays = task.schedule_days || [0,1,2,3,4,5,6];
                     
-                    const payload = { 
-                        session_id: SESSION_ID, 
-                        start_time: task.start_time || '', 
-                        end_time: task.end_time || '', 
-                        status: task.status || 'idle', 
-                        consequence_status: task.consequence_status || 'none', 
-                        schedule_days: scheduleDays, // Send as array - Supabase handles JSON serialization
-                        last_active_date: getTodayString(), 
-                        title: encrypt(task.title || ''), 
-                        instructions: encryptList(task.instructions || []),
-                        rules: encryptList(task.rules || []),
-                        media_items: encryptList(task.media_items || []),
-                        reward_text: encrypt(task.reward_text || ''), 
-                        punishment_text: encrypt(task.punishment_text || '') 
+                    const taskData = { 
+                        ...task,
+                        schedule_days: scheduleDays,
+                        last_active_date: getTodayString(),
                     };
                     
                     let newTasks = [...tasks];
                     
                     if (task.id === 'new') { 
-                        const { data, error } = await supabase.from('identity_tasks').insert([payload]).select();
-                        if (!error && data && data[0]) {
-                            const newTask = { ...data[0], ...task };
-                            newTasks = [...tasks, newTask];
-                            setTasks(newTasks);
-                        }
+                        const newId = Date.now().toString(); // Simple ID generation
+                        const newTask = { ...taskData, id: newId };
+                        newTasks = [...tasks, newTask];
+                        setTasks(newTasks);
                     } else { 
-                        delete payload.session_id;
-                        const { error } = await supabase.from('identity_tasks').update(payload).eq('id', task.id);
-                        if (!error) newTasks = tasks.map(t => t.id === task.id ? task : t);
+                        newTasks = tasks.map(t => t.id === task.id ? taskData : t);
                         setTasks(newTasks);
                     }
                     
-                    await updateStats(newTasks);
+                    saveTasksToStorage(newTasks);
+                    updateStats(newTasks);
                     setEditingTask(null);
                 } catch (error) { console.error("Save task error:", error); }
             };
 
-            const handleDeleteTask = async (id) => {
+            const handleDeleteTask = (id) => {
                 if (!confirm("Delete this habit?")) return; 
                 try {
-                    const { error } = await supabase.from('identity_tasks').delete().eq('id', id);
-                    if (!error) {
-                        const n = tasks.filter(t => t.id !== id); 
-                        setTasks(n); 
-                        await updateStats(n); 
-                        setEditingTask(null);
-                    }
+                    const n = tasks.filter(t => t.id !== id); 
+                    setTasks(n); 
+                    saveTasksToStorage(n);
+                    updateStats(n); 
+                    setEditingTask(null);
                 } catch (error) { console.error("Delete task error:", error); }
             };
 
-            const handleStateChange = async (id, type) => {
+            const handleStateChange = (id, type) => {
                 try {
                     let updates = {}; 
                     if (type === 'complete') updates = { status: 'completed', consequence_status: 'reward_pending' }; 
@@ -413,78 +424,138 @@
                     const newTasks = tasks.map(t => t.id === id ? { ...t, ...updates } : t); 
                     setTasks(newTasks); 
                     
-                    await supabase.from('identity_tasks').update(updates).eq('id', id);
-                    await updateStats(newTasks);
+                    saveTasksToStorage(newTasks);
+                    updateStats(newTasks);
                 } catch (error) { console.error("State change error:", error); }
             };
 
-            const handleGoalUpdate = async (goal, isDelete = false) => {
+            const handleGoalUpdate = (goal, isDelete = false) => {
                 try {
                     if (isDelete) { 
                         if (!confirm("Delete goal?")) return; 
-                        const { error } = await supabase.from('identity_goals').delete().eq('id', goal.id);
-                        if (!error) setGoals(goals.filter(g => g.id !== goal.id)); 
+                        const newGoals = goals.filter(g => g.id !== goal.id);
+                        setGoals(newGoals); 
+                        saveGoalsToStorage(newGoals);
                         setEditingGoal(null); 
                         return; 
                     }
                     
-                    const payload = { 
-                        session_id: SESSION_ID, 
-                        is_completed: goal.is_completed || false, 
-                        title: encrypt(goal.title || ''), 
-                        timeline: encrypt(goal.timeline || ''), 
-                        linked_systems: encryptList(goal.linked_systems || []) 
-                    };
+                    let newGoals = [...goals];
                     
                     if (goal.id === 'new') { 
-                        const { data, error } = await supabase.from('identity_goals').insert([payload]).select(); 
-                        if (!error && data && data[0]) setGoals([...goals, { ...data[0], ...goal }]); 
+                        const newId = Date.now().toString(); // Simple ID generation
+                        const newGoal = { ...goal, id: newId };
+                        newGoals = [...goals, newGoal];
+                        setGoals(newGoals);
                     } else { 
-                        delete payload.session_id; 
-                        const { error } = await supabase.from('identity_goals').update(payload).eq('id', goal.id);
-                        if (!error) setGoals(goals.map(g => g.id === goal.id ? goal : g)); 
+                        newGoals = goals.map(g => g.id === goal.id ? goal : g);
+                        setGoals(newGoals);
                     }
+                    
+                    saveGoalsToStorage(newGoals);
                     setEditingGoal(null);
                 } catch (error) { console.error("Goal update error:", error); }
             };
 
-            const handleSeal = async (days) => { 
+            const handleSeal = (days) => { 
                 if(!confirm(`Lock system for ${days} days?`)) return; 
                 try {
                     const date = new Date(); date.setDate(date.getDate() + days); 
-                    await supabase.from('identity_settings').upsert(
-                        { session_id: SESSION_ID, locked_until: date.toISOString() }, 
-                        { onConflict: 'session_id' }
-                    );
+                    const settings = { locked_until: date.toISOString() };
+                    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
                     setLockDate(date.toISOString()); 
                 } catch (error) { console.error("Seal error:", error); }
             };
             
-            const handleBreakLock = async () => { 
+            const handleBreakLock = () => { 
                 const phrase = LANG[lang].shame_phrases[Math.floor(Math.random() * LANG[lang].shame_phrases.length)]; 
                 const input = prompt(`${t('break_contract')}\n\nType exactly:\n"${phrase}"`); 
                 if (input === phrase) { 
-                    await supabase.from('identity_settings').upsert(
-                        { session_id: SESSION_ID, locked_until: null }, 
-                        { onConflict: 'session_id' }
-                    );
+                    const settings = { locked_until: null };
+                    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
                     setLockDate(null); 
                 } else { alert("Incorrect."); } 
             };
             
-            const handleResetDay = async () => { 
+            const handleResetDay = () => { 
                 if(!confirm("Reset ALL progress for today?")) return; 
                 try {
                     const today = getTodayString(); 
                     const resetTasks = tasks.map(t => ({ ...t, status: 'idle', consequence_status: 'none', last_active_date: today })); 
                     setTasks(resetTasks); 
-                    await supabase.from('identity_tasks').update({ status: 'idle', consequence_status: 'none', last_active_date: today }).eq('session_id', SESSION_ID);
-                    await updateStats(resetTasks); 
+                    saveTasksToStorage(resetTasks);
+                    updateStats(resetTasks); 
                 } catch (error) { console.error("Reset day error:", error); }
             };
 
             const handleTimerChange = (id, seconds, isRunning) => {
                 setActiveTimer({ id, seconds, isRunning });
+            };
+
+            // Export all data
+            const handleExportData = () => {
+                try {
+                    const allData = {
+                        version: '1.0',
+                        exportDate: new Date().toISOString(),
+                        tasks: JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS) || '[]'),
+                        goals: JSON.parse(localStorage.getItem(STORAGE_KEYS.GOALS) || '[]'),
+                        history: JSON.parse(localStorage.getItem(STORAGE_KEYS.HISTORY) || '[]'),
+                        counts: JSON.parse(localStorage.getItem(STORAGE_KEYS.COUNTS) || '{}'),
+                        settings: JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{}'),
+                        theme: localStorage.getItem(STORAGE_KEYS.THEME),
+                        language: localStorage.getItem(STORAGE_KEYS.LANGUAGE),
+                        encryptionKey: ENCRYPTION_KEY
+                    };
+                    
+                    const dataStr = JSON.stringify(allData);
+                    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                    const exportFileDefaultName = 'identity_architecture_backup.json';
+                    
+                    const linkElement = document.createElement('a');
+                    linkElement.setAttribute('href', dataUri);
+                    linkElement.setAttribute('download', exportFileDefaultName);
+                    linkElement.click();
+                } catch (error) {
+                    console.error("Export error:", error);
+                    alert("Error exporting data");
+                }
+            };
+
+            // Import all data
+            const handleImportData = (file) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+                        
+                        if (!importedData.version || !importedData.encryptionKey) {
+                            alert("Invalid backup file format");
+                            return;
+                        }
+                        
+                        if (confirm("This will overwrite all current data. Are you sure?")) {
+                            // Save all imported data to localStorage
+                            if (importedData.tasks) localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(importedData.tasks));
+                            if (importedData.goals) localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(importedData.goals));
+                            if (importedData.history) localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(importedData.history));
+                            if (importedData.counts) localStorage.setItem(STORAGE_KEYS.COUNTS, JSON.stringify(importedData.counts));
+                            if (importedData.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(importedData.settings));
+                            if (importedData.theme) localStorage.setItem(STORAGE_KEYS.THEME, importedData.theme);
+                            if (importedData.language) localStorage.setItem(STORAGE_KEYS.LANGUAGE, importedData.language);
+                            
+                            // Update encryption key
+                            localStorage.setItem(STORAGE_KEYS.ENCRYPTION_KEY, importedData.encryptionKey);
+                            
+                            // Reload the app
+                            window.location.reload();
+                        }
+                    } catch (error) {
+                        console.error("Import error:", error);
+                        alert("Error importing data. File may be corrupted.");
+                    }
+                };
+                reader.readAsText(file);
             };
 
             return (
@@ -523,7 +594,19 @@
                             />
                         )}
                         {activeTab === 'settings' && (
-                            <SettingsView theme={theme} setTheme={setTheme} lang={lang} setLang={setLang} t={t} isLocked={isLocked} onSeal={handleSeal} onBreak={handleBreakLock} onResetDay={handleResetDay} />
+                            <SettingsView 
+                                theme={theme} 
+                                setTheme={setTheme} 
+                                lang={lang} 
+                                setLang={setLang} 
+                                t={t} 
+                                isLocked={isLocked} 
+                                onSeal={handleSeal} 
+                                onBreak={handleBreakLock} 
+                                onResetDay={handleResetDay}
+                                onExport={handleExportData}
+                                onImport={handleImportData}
+                            />
                         )}
                     </main>
 
@@ -546,7 +629,16 @@
                     )}
                     
                     {editingTask && <TaskEditor task={editingTask} t={t} onSave={handleSaveTask} onDelete={handleDeleteTask} onClose={() => setEditingTask(null)} />}
-                    {editingGoal && <GoalEditor goal={editingGoal} t={t} onSave={handleGoalUpdate} onDelete={() => handleGoalUpdate(editingGoal, true)} onClose={() => setEditingGoal(null)} />}
+                    
+                    {editingGoal && (
+                        <GoalEditor 
+                            goal={editingGoal} 
+                            t={t} 
+                            onSave={(goal) => handleGoalUpdate(goal)} 
+                            onDelete={() => handleGoalUpdate(editingGoal, true)} 
+                            onClose={() => setEditingGoal(null)} 
+                        />
+                    )}
                 </div>
             );
         }
@@ -556,32 +648,25 @@
             const today = new Date(); 
             const dayIndex = today.getDay();
             
-            // FIXED: Robust schedule filtering with proper parsing
             const visibleTasks = tasks.filter(task => {
                 if (isManaging) return true;
                 
-                // Get schedule days with proper parsing
                 let schedule = task.schedule_days;
                 
-                // Handle different data types from Supabase
                 if (typeof schedule === 'string') {
                     try {
                         schedule = JSON.parse(schedule);
                     } catch (e) {
-                        // If parsing fails, show the task (safe default)
                         return true;
                     }
                 }
                 
-                // If schedule is not an array or is empty array, show the task
                 if (!Array.isArray(schedule) || schedule.length === 0) {
                     return true;
                 }
                 
-                // Ensure all schedule values are numbers
                 schedule = schedule.map(d => Number(d));
                 
-                // Check if today's dayIndex is in the schedule array
                 return schedule.includes(dayIndex);
             }).sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
             
@@ -807,7 +892,7 @@
             );
         }
 
-        function GoalsView({ goals, isManaging, onToggleManage, onEdit, onNew, onCheck, t }) {
+        function GoalsView({ goals, t, isManaging, onToggleManage, onEdit, onNew, onCheck }) {
             return (
                 <div className="pt-8 space-y-8 animate-[slideUp_0.5s_ease-out]">
                     <div className="flex justify-between items-end border-b border-theme pb-4">
@@ -852,19 +937,18 @@
             );
         }
 
-        function SettingsView({ theme, setTheme, lang, setLang, t, isLocked, onSeal, onBreak, onResetDay }) {
+        function SettingsView({ theme, setTheme, lang, setLang, t, isLocked, onSeal, onBreak, onResetDay, onExport, onImport }) {
             const fileRef = useRef(null); 
-            const handleSave = async () => { 
-                const data = JSON.stringify({ s: SESSION_ID, k: ENCRYPTION_KEY }); 
-                const blob = new Blob([data], {type: "application/json"}); 
-                const url = URL.createObjectURL(blob); 
-                const a = document.createElement('a'); a.href = url; a.download = "identity_backup.json"; document.body.appendChild(a); a.click(); document.body.removeChild(a); 
-            }; 
-            const handleLoad = (e) => { 
-                const f = e.target.files[0]; if(!f) return; 
-                const r = new FileReader(); 
-                r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if(d.s && d.k && confirm("Overwrite current data?")) { localStorage.setItem('identity_session_id', d.s); localStorage.setItem('identity_encryption_key', d.k); window.location.reload(); } } catch(err) { alert("Error loading backup file"); } }; 
-                r.readAsText(f); 
+            
+            const handleImportClick = () => {
+                fileRef.current.click();
+            };
+            
+            const handleFileChange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    onImport(file);
+                }
             };
             
             return (
@@ -909,9 +993,13 @@
                     <div className="bg-theme-card border-theme border p-6 rounded-xl">
                         <h2 className="text-xs font-bold uppercase tracking-widest text-muted-theme mb-4">{t('backup')}</h2>
                         <div className="flex flex-col gap-3">
-                            <button onClick={handleSave} className="w-full bg-theme-bg py-4 rounded-lg border border-theme hover:brightness-125 transition-colors flex items-center justify-center gap-3 font-bold text-theme"><Icons.Download size={16} /> {t('save')}</button>
-                            <button onClick={() => fileRef.current.click()} className="w-full bg-theme-bg py-4 rounded-lg border border-theme hover:brightness-125 transition-colors flex items-center justify-center gap-3 font-bold text-theme"><Icons.Upload size={16} /> {t('restore')}</button>
-                            <input type="file" ref={fileRef} onChange={handleLoad} accept=".json" className="hidden" />
+                            <button onClick={onExport} className="w-full bg-theme-bg py-4 rounded-lg border border-theme hover:brightness-125 transition-colors flex items-center justify-center gap-3 font-bold text-theme">
+                                <Icons.Download size={16} /> {t('save')}
+                            </button>
+                            <button onClick={handleImportClick} className="w-full bg-theme-bg py-4 rounded-lg border border-theme hover:brightness-125 transition-colors flex items-center justify-center gap-3 font-bold text-theme">
+                                <Icons.Upload size={16} /> {t('restore')}
+                            </button>
+                            <input type="file" ref={fileRef} onChange={handleFileChange} accept=".json" className="hidden" />
                         </div>
                     </div>
                 </div>
