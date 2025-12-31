@@ -208,7 +208,7 @@
             const [editingTask, setEditingTask] = useState(null);
             const [editingGoal, setEditingGoal] = useState(null);
             const [lockDate, setLockDate] = useState(null);
-            const [activeTimer, setActiveTimer] = useState({ id: null, seconds: 0, isRunning: false });
+            const [activeTimer, setActiveTimer] = useState({ id: null, seconds: 0, isRunning: false, startTime: null });
             
             const [theme, setTheme] = useState(localStorage.getItem(STORAGE_KEYS.THEME) || 'midnight');
             const [lang, setLang] = useState(localStorage.getItem(STORAGE_KEYS.LANGUAGE) || 'en');
@@ -488,8 +488,8 @@
                 } catch (error) { console.error("Reset day error:", error); }
             };
 
-            const handleTimerChange = (id, seconds, isRunning) => {
-                setActiveTimer({ id, seconds, isRunning });
+            const handleTimerChange = (id, seconds, isRunning, startTime = null) => {
+                setActiveTimer({ id, seconds, isRunning, startTime: startTime || (isRunning ? Date.now() - (seconds * 1000) : null) });
             };
 
             // Export all data
@@ -1010,29 +1010,49 @@
             if (!task) return null;
             
             const isCurrentTask = activeTimer.id === task.id;
-            const seconds = isCurrentTask ? activeTimer.seconds : 0;
             const isRunning = isCurrentTask ? activeTimer.isRunning : false;
+            const startTime = isCurrentTask ? activeTimer.startTime : null;
+            
+            // Calculate seconds based on elapsed time from startTime
+            const calculateSeconds = () => {
+                if (!isRunning || !startTime) return activeTimer.seconds || 0;
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                return elapsed;
+            };
+            
+            const [displaySeconds, setDisplaySeconds] = useState(calculateSeconds());
             
             useEffect(() => {
                 let interval;
                 if (isRunning && isCurrentTask) {
                     interval = setInterval(() => {
-                        onTimerChange(task.id, seconds + 1, true);
-                    }, 1000);
+                        const newSeconds = calculateSeconds();
+                        setDisplaySeconds(newSeconds);
+                    }, 100); // Update more frequently for smoother display
+                } else if (isCurrentTask) {
+                    setDisplaySeconds(activeTimer.seconds || 0);
                 }
                 return () => clearInterval(interval);
-            }, [isRunning, seconds, isCurrentTask]);
+            }, [isRunning, isCurrentTask, startTime, activeTimer.seconds]);
             
             const handleToggleTimer = () => {
                 if (isCurrentTask) {
-                    onTimerChange(task.id, seconds, !isRunning);
+                    if (isRunning) {
+                        // Pausing: save current elapsed time
+                        const elapsedSeconds = calculateSeconds();
+                        onTimerChange(task.id, elapsedSeconds, false, null);
+                    } else {
+                        // Starting: set startTime to now minus already elapsed seconds
+                        onTimerChange(task.id, displaySeconds, true, Date.now() - (displaySeconds * 1000));
+                    }
                 } else {
-                    onTimerChange(task.id, seconds, true);
+                    // Starting a new timer
+                    onTimerChange(task.id, 0, true, Date.now());
                 }
             };
             
             const handleComplete = () => { 
-                onTimerChange(task.id, 0, false); 
+                onTimerChange(task.id, 0, false, null); 
                 onStateChange(task.id, 'complete'); 
                 onClose(); 
             };
@@ -1147,12 +1167,12 @@
                                 <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold">{t('timer')}</h3>
                                 <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
                                     <div className="text-center mb-6">
-                                        <div className="text-4xl font-mono font-bold text-white mb-2">{formatTime(seconds)}</div>
+                                        <div className="text-4xl font-mono font-bold text-white mb-2">{formatTime(displaySeconds)}</div>
                                         <div className="flex justify-center gap-3">
                                             <button onClick={handleToggleTimer} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2">
                                                 {isRunning ? <><Icons.Pause size={16} /> {t('pause')}</> : <><Icons.Play size={16} /> {t('start')}</>}
                                             </button>
-                                            <button onClick={() => onTimerChange(task.id, 0, false)} className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg">
+                                            <button onClick={() => onTimerChange(task.id, 0, false, null)} className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg">
                                                 Reset
                                             </button>
                                         </div>
@@ -1307,6 +1327,46 @@
                                             </div>
                                         ))}
                                     </div>
+                                    
+                                    <div>
+                                        <div className="flex justify-between items-center mb-2">
+                                            <label className="block text-sm font-medium text-slate-400">{t('media')}</label>
+                                            <button onClick={() => addListItem('media_items')} className="text-sm text-blue-400 hover:text-blue-300">+ Add</button>
+                                        </div>
+                                        {localTask.media_items?.map((item, i) => (
+                                            <div key={i} className="mb-4 p-4 bg-slate-900 border border-slate-700 rounded-lg">
+                                                <div className="flex gap-2 mb-3">
+                                                    <input 
+                                                        type="text" 
+                                                        value={item.label || item.text || ''} 
+                                                        onChange={(e) => handleListChange('media_items', i, { ...item, label: e.target.value })} 
+                                                        className="flex-1 p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm"
+                                                        placeholder="Label"
+                                                    />
+                                                    <select 
+                                                        value={item.type || ''} 
+                                                        onChange={(e) => handleListChange('media_items', i, { ...item, type: e.target.value })} 
+                                                        className="p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm"
+                                                    >
+                                                        <option value="">Type</option>
+                                                        <option value="youtube">YouTube</option>
+                                                        <option value="image">Image</option>
+                                                        <option value="link">Link</option>
+                                                    </select>
+                                                </div>
+                                                <input 
+                                                    type="text" 
+                                                    value={item.url || ''} 
+                                                    onChange={(e) => handleListChange('media_items', i, { ...item, url: e.target.value })} 
+                                                    className="w-full p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm mb-2"
+                                                    placeholder="URL"
+                                                />
+                                                <div className="flex justify-end">
+                                                    <button onClick={() => removeListItem('media_items', i)} className="text-sm text-red-400 hover:text-red-300">Remove</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                             
@@ -1347,46 +1407,6 @@
                                             className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
                                             placeholder="e.g., 30 minutes of video games"
                                         />
-                                    </div>
-                                    
-                                    <div>
-                                        <div className="flex justify-between items-center mb-2">
-                                            <label className="block text-sm font-medium text-slate-400">{t('media')}</label>
-                                            <button onClick={() => addListItem('media_items')} className="text-sm text-blue-400 hover:text-blue-300">+ Add</button>
-                                        </div>
-                                        {localTask.media_items?.map((item, i) => (
-                                            <div key={i} className="mb-4 p-4 bg-slate-900 border border-slate-700 rounded-lg">
-                                                <div className="flex gap-2 mb-3">
-                                                    <input 
-                                                        type="text" 
-                                                        value={item.label || item.text || ''} 
-                                                        onChange={(e) => handleListChange('media_items', i, { ...item, label: e.target.value })} 
-                                                        className="flex-1 p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm"
-                                                        placeholder="Label"
-                                                    />
-                                                    <select 
-                                                        value={item.type || ''} 
-                                                        onChange={(e) => handleListChange('media_items', i, { ...item, type: e.target.value })} 
-                                                        className="p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm"
-                                                    >
-                                                        <option value="">Type</option>
-                                                        <option value="youtube">YouTube</option>
-                                                        <option value="image">Image</option>
-                                                        <option value="link">Link</option>
-                                                    </select>
-                                                </div>
-                                                <input 
-                                                    type="text" 
-                                                    value={item.url || ''} 
-                                                    onChange={(e) => handleListChange('media_items', i, { ...item, url: e.target.value })} 
-                                                    className="w-full p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm mb-2"
-                                                    placeholder="URL"
-                                                />
-                                                <div className="flex justify-end">
-                                                    <button onClick={() => removeListItem('media_items', i)} className="text-sm text-red-400 hover:text-red-300">Remove</button>
-                                                </div>
-                                            </div>
-                                        ))}
                                     </div>
                                 </div>
                             )}
