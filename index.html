@@ -1014,14 +1014,14 @@
             const isRunning = isCurrentTask ? activeTimer.isRunning : false;
             
             useEffect(() => {
-                let interval;
-                if (isRunning && isCurrentTask) {
-                    interval = setInterval(() => {
-                        onTimerChange(task.id, seconds + 1, true);
-                    }, 1000);
-                }
-                return () => clearInterval(interval);
-            }, [isRunning, seconds, isCurrentTask]);
+    let interval;
+    if (isRunning && isCurrentTask) {
+        interval = setInterval(() => {
+            onTimerChange(task.id, seconds + 1, true);
+        }, 1000);
+    }
+    return () => clearInterval(interval);
+}, [isRunning, isCurrentTask]); // Remove seconds from dependencies
             
             const handleToggleTimer = () => {
                 if (isCurrentTask) {
@@ -1286,7 +1286,47 @@
                                             </div>
                                         ))}
                                     </div>
-                                    
+                                    <div>
+            <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium text-slate-400">{t('media')}</label>
+                <button onClick={() => addListItem('media_items')} className="text-sm text-blue-400 hover:text-blue-300">+ Add</button>
+            </div>
+            {localTask.media_items?.map((item, i) => (
+                <div key={i} className="mb-4 p-4 bg-slate-900 border border-slate-700 rounded-lg">
+                    <div className="flex gap-2 mb-3">
+                        <input 
+                            type="text" 
+                            value={item.label || item.text || ''} 
+                            onChange={(e) => handleListChange('media_items', i, { ...item, label: e.target.value })} 
+                            className="flex-1 p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm"
+                            placeholder="Label"
+                        />
+                        <select 
+                            value={item.type || ''} 
+                            onChange={(e) => handleListChange('media_items', i, { ...item, type: e.target.value })} 
+                            className="p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm"
+                        >
+                            <option value="">Type</option>
+                            <option value="youtube">YouTube</option>
+                            <option value="image">Image</option>
+                            <option value="link">Link</option>
+                        </select>
+                    </div>
+                    <input 
+                        type="text" 
+                        value={item.url || ''} 
+                        onChange={(e) => handleListChange('media_items', i, { ...item, url: e.target.value })} 
+                        className="w-full p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm mb-2"
+                        placeholder="URL"
+                    />
+                    <div className="flex justify-end">
+                        <button onClick={() => removeListItem('media_items', i)} className="text-sm text-red-400 hover:text-red-300">Remove</button>
+                    </div>
+                </div>
+            ))}
+        </div>
+    </div>
+)}
                                     <div>
                                         <div className="flex justify-between items-center mb-2">
                                             <label className="block text-sm font-medium text-slate-400">{t('rules')}</label>
@@ -1336,60 +1376,7 @@
                                 </div>
                             )}
                             
-                            {activeTab === 'rewards' && (
-                                <div className="space-y-6">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-2">{t('reward')}</label>
-                                        <input 
-                                            type="text" 
-                                            value={localTask.reward_text || ''} 
-                                            onChange={(e) => handleChange('reward_text', e.target.value)} 
-                                            className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
-                                            placeholder="e.g., 30 minutes of video games"
-                                        />
-                                    </div>
-                                    
-                                    <div>
-                                        <div className="flex justify-between items-center mb-2">
-                                            <label className="block text-sm font-medium text-slate-400">{t('media')}</label>
-                                            <button onClick={() => addListItem('media_items')} className="text-sm text-blue-400 hover:text-blue-300">+ Add</button>
-                                        </div>
-                                        {localTask.media_items?.map((item, i) => (
-                                            <div key={i} className="mb-4 p-4 bg-slate-900 border border-slate-700 rounded-lg">
-                                                <div className="flex gap-2 mb-3">
-                                                    <input 
-                                                        type="text" 
-                                                        value={item.label || item.text || ''} 
-                                                        onChange={(e) => handleListChange('media_items', i, { ...item, label: e.target.value })} 
-                                                        className="flex-1 p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm"
-                                                        placeholder="Label"
-                                                    />
-                                                    <select 
-                                                        value={item.type || ''} 
-                                                        onChange={(e) => handleListChange('media_items', i, { ...item, type: e.target.value })} 
-                                                        className="p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm"
-                                                    >
-                                                        <option value="">Type</option>
-                                                        <option value="youtube">YouTube</option>
-                                                        <option value="image">Image</option>
-                                                        <option value="link">Link</option>
-                                                    </select>
-                                                </div>
-                                                <input 
-                                                    type="text" 
-                                                    value={item.url || ''} 
-                                                    onChange={(e) => handleListChange('media_items', i, { ...item, url: e.target.value })} 
-                                                    className="w-full p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm mb-2"
-                                                    placeholder="URL"
-                                                />
-                                                <div className="flex justify-end">
-                                                    <button onClick={() => removeListItem('media_items', i)} className="text-sm text-red-400 hover:text-red-300">Remove</button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                            
                             
                             {activeTab === 'punishments' && (
                                 <div className="space-y-6">
