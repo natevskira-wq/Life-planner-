@@ -10,6 +10,7 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     
     <!-- Styles -->
@@ -26,17 +27,6 @@
         input:focus { outline: none; border-color: var(--muted); }
         .strike-through { text-decoration: line-through; opacity: 0.5; }
         
-        /* Dynamic Classes for Theme Support */
-        .bg-theme-card { background-color: var(--card); }
-        .bg-theme-bg { background-color: var(--bg); }
-        .border-theme { border-color: var(--border); }
-        .text-theme { color: var(--text); }
-        .text-muted-theme { color: var(--muted); }
-
-        /* Chart Animations */
-        .chart-point { transition: cy 0.5s ease, cx 0.5s ease; }
-        .chart-line { transition: d 0.5s ease; }
-        
         /* Animations */
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -52,125 +42,76 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- TRANSLATIONS ---
+        // --- CONSTANTS & CONFIG ---
+        const SUPABASE_URL = 'https://syrhuxxryctrzjdzexnx.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5cmh1eHhyeWN0cnpqZHpleG54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxMjYzMjUsImV4cCI6MjA4MDcwMjMyNX0.DP4O-USLYPbjGoTwM2fSc8juzLsABrDbGpQ-7CxSAXQ';
+        
         const LANG = {
-            en: { system: "System", truth: "Truth", goals: "Direction", settings: "Settings", today_win: "Today I win if I complete the system.", architect: "Architect Mode", unlock: "Manage System", locked: "System Sealed", habits: "Habits", score: "Score", save: "Save Data", restore: "Restore Data", steps: "Execution Steps", rules: "Rules", media: "References", timer: "Timer", start: "Start", pause: "Pause", complete: "Complete", fail: "Fail", new_block: "New Habit", edit_block: "Edit Habit", title: "Title", theme: "Appearance", language: "Language", backup: "Data Backup", schedule: "Schedule", reward: "Reward (Optional)", punishment: "Punishment (Optional)", rewards: "Rewards", punishments: "Punishments", seal_contract: "Seal Iron Contract", break_contract: "Break Contract", seal_desc: "Lock editing for X days.", days: "Days", reset_day: "Reset Today", week: "Week", month: "Month", shame_phrases: ["I am breaking my promise because I am weak.", "I value comfort over my future."] },
-            ar: { system: "النظام", truth: "الحقيقة", goals: "الوجهة", settings: "الإعدادات", today_win: "أنتصر اليوم إذا أتممت النظام.", architect: "وضع المهندس", unlock: "تعديل النظام", locked: "النظام مغلق", habits: "العادات", score: "النتيجة", save: "حفظ", restore: "استرجاع", steps: "الخطوات", rules: "القواعد", media: "المراجع", timer: "المؤقت", start: "بدء", pause: "إيقاف", complete: "تم", fail: "فشل", new_block: "عادة جديدة", edit_block: "تعديل", title: "العنوان", theme: "المظهر", language: "اللغة", backup: "النسخ الاحتياطي", schedule: "الجدول", reward: "المكافأة", punishment: "العقوبة", rewards: "المكافآت", punishments: "العقوبات", seal_contract: "ختم العقد", break_contract: "كسر العقد", seal_desc: "قفل التعديل لعدة أيام.", days: "أيام", reset_day: "إعادة ضبط اليوم", week: "أسبوع", month: "شهر", shame_phrases: ["أنا أكسر وعدي لنفسي لأني ضعيف.", "راحتي المؤقتة أهم من مستقبلي."] },
-            de: { system: "System", truth: "Wahrheit", goals: "Ziele", settings: "Einstellungen", today_win: "Heute gewinne ich.", architect: "Architekt", unlock: "Verwalten", locked: "Versiegelt", habits: "Gewohnheiten", score: "Ergebnis", save: "Speichern", restore: "Wiederherstellen", steps: "Schritte", rules: "Regeln", media: "Medien", timer: "Timer", start: "Start", pause: "Pause", complete: "Fertig", fail: "Fehlschlag", new_block: "Neu", edit_block: "Bearbeiten", title: "Titel", theme: "Aussehen", language: "Sprache", backup: "Backup", schedule: "Zeitplan", reward: "Belohnung", punishment: "Strafe", rewards: "Belohnungen", punishments: "Strafen", seal_contract: "Vertrag", break_contract: "Brechen", seal_desc: "Bearbeitung sperren.", days: "Tage", reset_day: "Reset", week: "Woche", month: "Month", shame_phrases: ["Ich breche mein Versprechen.", "Komfort ist mir wichtiger."] }
+            en: { system: "System", truth: "Truth", goals: "Direction", settings: "Settings", today_win: "Today I win if I complete the system.", architect: "Architect Mode", unlock: "Manage System", locked: "System Sealed", habits: "Habits", score: "Score", save: "Save Data", restore: "Restore Data", steps: "Execution Steps", rules: "Rules", media: "References", timer: "Timer", start: "Start", pause: "Pause", complete: "Complete", fail: "Fail", new_block: "New Habit", edit_block: "Edit Habit", title: "Title", theme: "Appearance", language: "Language", backup: "Data Backup", schedule: "Schedule", reward: "Reward (Optional)", punishment: "Punishment (Optional)", rewards: "Rewards", punishments: "Punishments", seal_contract: "Seal Iron Contract", break_contract: "Break Contract", seal_desc: "Lock editing for X days. It will open normally after the time passes.", days: "Days", reset_day: "Reset Today", week: "Week", month: "Month", shame_phrases: ["I am breaking my promise because I am weak.", "I value comfort over my future."], delete: "Delete", type: "Type", label: "Label", url: "URL", details: "Details" },
+            ar: { system: "النظام", truth: "الحقيقة", goals: "الوجهة", settings: "الإعدادات", today_win: "أنتصر اليوم إذا أتممت النظام.", architect: "وضع المهندس", unlock: "تعديل النظام", locked: "النظام مغلق", habits: "العادات", score: "النتيجة", save: "حفظ", restore: "استرجاع", steps: "الخطوات", rules: "القواعد", media: "المراجع", timer: "المؤقت", start: "بدء", pause: "إيقاف", complete: "تم", fail: "فشل", new_block: "عادة جديدة", edit_block: "تعديل", title: "العنوان", theme: "المظهر", language: "اللغة", backup: "النسخ الاحتياطي", schedule: "الجدول", reward: "المكافأة", punishment: "العقوبة", rewards: "المكافآت", punishments: "العقوبات", seal_contract: "ختم العقد", break_contract: "كسر العقد", seal_desc: "قفل التعديل لعدة أيام. سيفتح تلقائياً بعد انقضاء المدة.", days: "أيام", reset_day: "إعادة ضبط اليوم", week: "أسبوع", month: "شهر", shame_phrases: ["أنا أكسر وعدي لنفسي لأني ضعيف.", "راحتي المؤقتة أهم من مستقبلي."], delete: "حذف", type: "النوع", label: "الوصف", url: "الرابط", details: "التفاصيل" },
+            de: { system: "System", truth: "Wahrheit", goals: "Ziele", settings: "Einstellungen", today_win: "Heute gewinne ich.", architect: "Architekt", unlock: "Verwalten", locked: "Versiegelt", habits: "Gewohnheiten", score: "Ergebnis", save: "Speichern", restore: "Wiederherstellen", steps: "Schritte", rules: "Regeln", media: "Medien", timer: "Timer", start: "Start", pause: "Pause", complete: "Fertig", fail: "Fehlschlag", new_block: "Neu", edit_block: "Bearbeiten", title: "Titel", theme: "Aussehen", language: "Sprache", backup: "Backup", schedule: "Zeitplan", reward: "Belohnung", punishment: "Strafe", rewards: "Belohnungen", punishments: "Strafen", seal_contract: "Vertrag", break_contract: "Brechen", seal_desc: "Bearbeitung sperren. Öffnet sich automatisch nach Ablauf der Zeit.", days: "Tage", reset_day: "Reset", week: "Woche", month: "Monat", shame_phrases: ["Ich breche mein Versprechen.", "Komfort ist mir wichtiger."], delete: "Löschen", type: "Typ", label: "Label", url: "URL", details: "Details" }
         };
 
         const DAYS_MAP = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-        // --- LOCAL STORAGE SETUP ---
-        const STORAGE_KEYS = {
-            TASKS: 'identity_tasks',
-            GOALS: 'identity_goals',
-            HISTORY: 'identity_history',
-            COUNTS: 'identity_counts',
-            SETTINGS: 'identity_settings',
-            THEME: 'identity_theme',
-            LANGUAGE: 'identity_lang',
-            ENCRYPTION_KEY: 'identity_encryption_key'
-        };
+        // --- INIT SUPABASE ---
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        // --- LOCAL & CRYPTO UTILS ---
         function getOrSetLocal(key, generator) {
             let val = localStorage.getItem(key);
             if (!val) { val = generator(); localStorage.setItem(key, val); }
             return val;
         }
 
-        const ENCRYPTION_KEY = getOrSetLocal(STORAGE_KEYS.ENCRYPTION_KEY, () => {
+        const SESSION_ID = getOrSetLocal('identity_session_id', () => crypto.randomUUID());
+        const ENCRYPTION_KEY = getOrSetLocal('identity_encryption_key', () => {
             const a = new Uint8Array(32); window.crypto.getRandomValues(a);
             return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
         });
 
-        // --- CRYPTO HELPERS ---
-        const encrypt = (t) => { 
-            try { 
+        // Safe Encrypt/Decrypt Wrappers
+        const encrypt = (t) => {
+            try {
                 if (t === null || t === undefined || t === '') return '';
                 if (typeof t !== 'string') t = String(t);
                 return CryptoJS.AES.encrypt(t, ENCRYPTION_KEY).toString();
-            } catch (e) { return ''; } 
+            } catch (e) { console.error("Encrypt error", e); return ''; }
         };
-        
-        const encryptList = (list) => { 
-            try { 
-                if (!list || !Array.isArray(list)) return encrypt('[]');
-                return encrypt(JSON.stringify(list.map(item => {
-                    if (typeof item === 'object' && item !== null) {
-                        return { text: item.text || item.text || '', type: item.type || '', url: item.url || '', label: item.label || '' };
-                    }
-                    return { text: item || '' };
-                })));
-            } catch (e) { return encrypt('[]'); } 
-        };
-        
-        const decrypt = (c) => { 
-            try { 
+
+        const decrypt = (c) => {
+            try {
                 if (!c || typeof c !== 'string') return c || '';
-                const b = CryptoJS.AES.decrypt(c, ENCRYPTION_KEY); 
-                const res = b.toString(CryptoJS.enc.Utf8);
-                return res || c;
-            } catch (e) { return c; } 
+                const bytes = CryptoJS.AES.decrypt(c, ENCRYPTION_KEY);
+                const str = bytes.toString(CryptoJS.enc.Utf8);
+                return str || c; // Fallback to original if decrypt fails (legacy data)
+            } catch (e) { return c; }
         };
-        
-        const decryptList = (c) => { 
-            try { 
-                if (!c) return [];
-                if (typeof c !== 'string' || c === '') return [];
-                
-                // If it's already an array (local storage data)
-                if (Array.isArray(c)) return c.map(item => ({ 
-                    text: item.text || item || '', 
-                    type: item.type || '', 
-                    url: item.url || '', 
-                    label: item.label || '' 
-                }));
-                
-                // If it's not encrypted (plain JSON), parse it directly
-                if (!c.startsWith("U2F")) {
-                    try {
-                        const parsed = JSON.parse(c);
-                        return Array.isArray(parsed) ? parsed.map(item => ({ 
-                            text: item.text || item || '', 
-                            type: item.type || '', 
-                            url: item.url || '', 
-                            label: item.label || '' 
-                        })) : [];
-                    } catch { return []; }
-                }
-                
-                // Proper encrypted data
-                const decrypted = decrypt(c);
-                if (!decrypted) return [];
-                
-                try {
-                    const parsed = JSON.parse(decrypted);
-                    return Array.isArray(parsed) ? parsed.map(item => ({ 
-                        text: item.text || item || '', 
-                        type: item.type || '', 
-                        url: item.url || '', 
-                        label: item.label || '' 
-                    })) : [];
-                } catch (e) {
-                    console.error("JSON parse error in decryptList:", e);
-                    return [];
-                }
-            } catch (e) { 
-                console.error("Decrypt list error:", e);
-                return []; 
-            } 
+
+        // Helper to encrypt complex objects/arrays into a string for storage
+        const encryptObject = (obj) => {
+            try {
+                return encrypt(JSON.stringify(obj));
+            } catch (e) { return ''; }
         };
-        
+
+        // Helper to decrypt string back to object/array
+        const decryptObject = (str) => {
+            try {
+                const decryptedStr = decrypt(str);
+                if (!decryptedStr) return [];
+                return JSON.parse(decryptedStr);
+            } catch (e) { return []; }
+        };
+
         const getTodayString = () => new Date().toLocaleDateString('en-CA');
 
         const { useState, useEffect, useRef, useMemo } = React;
-        
+
         // --- ICONS ---
         const Icon = ({ path, size = 20, className = "", onClick }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} onClick={onClick}>{path}</svg>
         );
-        
         const Icons = {
             Layout: (p) => <Icon {...p} path={<><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></>} />,
             BarChart2: (p) => <Icon {...p} path={<><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>} />,
@@ -184,1373 +125,220 @@
             Edit: (p) => <Icon {...p} path={<><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>} />,
             Trash: (p) => <Icon {...p} path={<><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>} />,
             X: (p) => <Icon {...p} path={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} />,
-            Download: (p) => <Icon {...p} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>} />,
-            Upload: (p) => <Icon {...p} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>} />,
             Lock: (p) => <Icon {...p} path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>} />,
             Unlock: (p) => <Icon {...p} path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>} />,
             ChevronRight: (p) => <Icon {...p} path={<polyline points="9 18 15 12 9 6"/>} />,
-            Alert: (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>} />,
             Video: (p) => <Icon {...p} path={<><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></>} />,
             Image: (p) => <Icon {...p} path={<><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></>} />
         };
 
-        // --- ROOT ---
+        // --- MAIN APP ---
         function App() {
             const [activeTab, setActiveTab] = useState('daily');
             const [tasks, setTasks] = useState([]);
             const [goals, setGoals] = useState([]);
             const [history, setHistory] = useState([]);
-            const [counts, setCounts] = useState({});
             const [isLoading, setIsLoading] = useState(true);
             
+            // UI State
             const [selectedTaskId, setSelectedTaskId] = useState(null);
-            const [isManagingHabits, setIsManagingHabits] = useState(false); // Changed from isManaging
-            const [isManagingGoals, setIsManagingGoals] = useState(false); // Added separate state for goals
+            const [isManaging, setIsManaging] = useState(false);
             const [editingTask, setEditingTask] = useState(null);
             const [editingGoal, setEditingGoal] = useState(null);
             const [lockDate, setLockDate] = useState(null);
-            const [activeTimer, setActiveTimer] = useState({ id: null, seconds: 0, isRunning: false, startTime: null });
             
-            const [theme, setTheme] = useState(localStorage.getItem(STORAGE_KEYS.THEME) || 'midnight');
-            const [lang, setLang] = useState(localStorage.getItem(STORAGE_KEYS.LANGUAGE) || 'en');
-            const t = (k) => LANG[lang][k] || k;
+            const [theme, setTheme] = useState(localStorage.getItem('identity_theme') || 'midnight');
+            const [lang, setLang] = useState(localStorage.getItem('identity_lang') || 'en');
             
-            const isLocked = useMemo(() => lockDate && new Date(lockDate) > new Date(), [lockDate]);
+            // Iron Contract Logic: Checks if current time is past lock date
+            const isLocked = useMemo(() => {
+                if (!lockDate) return false;
+                return new Date(lockDate) > new Date();
+            }, [lockDate]);
 
+            // Translations
+            const t = (k) => LANG[lang][k] || k;
+
+            // Effects
             useEffect(() => {
                 document.documentElement.setAttribute('data-theme', theme);
                 document.dir = lang === 'ar' ? 'rtl' : 'ltr';
-                localStorage.setItem(STORAGE_KEYS.THEME, theme);
-                localStorage.setItem(STORAGE_KEYS.LANGUAGE, lang);
+                localStorage.setItem('identity_theme', theme);
+                localStorage.setItem('identity_lang', lang);
             }, [theme, lang]);
 
-            useEffect(() => { fetchData(); }, []);
+            // Initial Data Load from Supabase
+            useEffect(() => { fetchAllData(); }, []);
 
-            const fetchData = async () => {
+            const fetchAllData = async () => {
                 setIsLoading(true);
                 try {
                     const today = getTodayString();
-                    
-                    // Load settings
-                    const settings = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{}');
-                    setLockDate(settings.locked_until || null);
 
-                    // Load tasks
-                    const savedTasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS) || '[]');
-                    
-                    if (savedTasks.length > 0) {
-                        const tasksToUpdate = [];
-                        const processed = savedTasks.map(task => {
+                    // 1. Settings (Lock Date)
+                    const { data: sData } = await supabase.from('identity_settings').select('*').eq('session_id', SESSION_ID).maybeSingle();
+                    if (sData) {
+                        setLockDate(sData.locked_until);
+                        setTheme(sData.theme || 'midnight');
+                        setLang(sData.language || 'en');
+                    } else {
+                        // Init settings if missing
+                        await supabase.from('identity_settings').insert({ session_id: SESSION_ID });
+                    }
+
+                    // 2. Tasks
+                    const { data: tData } = await supabase.from('identity_tasks').select('*').eq('session_id', SESSION_ID).order('start_time');
+                    if (tData) {
+                        // Reset status for new day
+                        const processedTasks = tData.map(task => {
                             if (task.last_active_date !== today) {
-                                tasksToUpdate.push({ ...task, status: 'idle', consequence_status: 'none', last_active_date: today });
                                 return { ...task, status: 'idle', consequence_status: 'none', last_active_date: today };
                             }
                             return task;
                         });
-                        
-                        if (tasksToUpdate.length > 0) {
-                            const updatedTasks = savedTasks.map(task => {
-                                const updatedTask = tasksToUpdate.find(t => t.id === task.id);
-                                return updatedTask || task;
-                            });
-                            localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(updatedTasks));
-                        }
-                        
-                        // Parse schedule_days properly
-                        setTasks(processed.map(x => {
-                            let scheduleDays = [0,1,2,3,4,5,6]; // Default to all days
-                            
-                            if (x.schedule_days) {
-                                if (Array.isArray(x.schedule_days)) {
-                                    scheduleDays = x.schedule_days;
-                                } else if (typeof x.schedule_days === 'string') {
-                                    try {
-                                        const parsed = JSON.parse(x.schedule_days);
-                                        if (Array.isArray(parsed)) {
-                                            scheduleDays = parsed;
-                                        }
-                                    } catch (e) {
-                                        console.log('Error parsing schedule_days:', e);
-                                    }
-                                }
-                                scheduleDays = scheduleDays.map(d => Number(d));
-                            }
-                            
-                            return {
-                                ...x, 
-                                title: decrypt(x.title) || '',
-                                instructions: decryptList(x.instructions) || [],
-                                rules: decryptList(x.rules) || [],
-                                media_items: decryptList(x.media_items) || [],
-                                reward_text: decrypt(x.reward_text) || '',
-                                punishment_text: decrypt(x.punishment_text) || '',
-                                schedule_days: scheduleDays
-                            };
+
+                        // Decrypt sensitive fields
+                        const decryptedTasks = processedTasks.map(t => ({
+                            ...t,
+                            title: decrypt(t.title),
+                            instructions: decryptObject(t.instructions),
+                            rules: decryptObject(t.rules),
+                            media_items: decryptObject(t.media_items),
+                            reward_text: decrypt(t.reward_text),
+                            punishment_text: decrypt(t.punishment_text)
                         }));
+                        setTasks(decryptedTasks);
+
+                        // If day changed, update DB immediately
+                        const needsUpdate = tData.some(t => t.last_active_date !== today);
+                        if (needsUpdate) {
+                            const updates = processedTasks.map(t => ({
+                                id: t.id,
+                                status: 'idle',
+                                consequence_status: 'none',
+                                last_active_date: today
+                            }));
+                            await supabase.from('identity_tasks').upsert(updates);
+                        }
                     }
 
-                    // Load goals
-                    const savedGoals = JSON.parse(localStorage.getItem(STORAGE_KEYS.GOALS) || '[]');
-                    if (savedGoals.length > 0) {
-                        setGoals(savedGoals.map(g => ({ 
-                            ...g, 
-                            title: decrypt(g.title) || '',
-                            timeline: decrypt(g.timeline) || '',
-                            linked_systems: decryptList(g.linked_systems) || []
+                    // 3. Goals
+                    const { data: gData } = await supabase.from('identity_goals').select('*').eq('session_id', SESSION_ID);
+                    if (gData) {
+                        setGoals(gData.map(g => ({
+                            ...g,
+                            title: decrypt(g.title),
+                            timeline: decrypt(g.timeline),
+                            linked_systems: decryptObject(g.linked_systems)
                         })));
                     }
 
-                    // Load history
-                    const savedHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.HISTORY) || '[]');
-                    setHistory(savedHistory);
+                    // 4. History
+                    const { data: hData } = await supabase.from('identity_history').select('*').eq('session_id', SESSION_ID);
+                    if (hData) setHistory(hData);
 
-                    // Load counts
-                    const savedCounts = JSON.parse(localStorage.getItem(STORAGE_KEYS.COUNTS) || '{}');
-                    setCounts(savedCounts);
-                } catch (error) {
-                    console.error("Fetch error:", error);
+                } catch (e) {
+                    console.error("Data Load Error:", e);
                 } finally {
                     setIsLoading(false);
                 }
             };
 
-            const calculateScore = (currentTasks) => {
-                if (!currentTasks || currentTasks.length === 0) return 0;
+            // --- CRUD ACTIONS ---
+
+            const updateHistoryScore = async (currentTasks) => {
+                const today = getTodayString();
+                const total = currentTasks.length;
                 const completed = currentTasks.filter(t => t.status === 'completed').length;
-                return Math.round((completed / currentTasks.length) * 100);
-            };
+                const score = total === 0 ? 0 : Math.round((completed / total) * 100);
 
-            const updateStats = (currentTasks) => {
-                try {
-                    const today = getTodayString();
-                    const score = calculateScore(currentTasks);
-                    
-                    // Update history
-                    const currentHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.HISTORY) || '[]');
-                    const historyIndex = currentHistory.findIndex(h => h.date === today);
-                    if (historyIndex > -1) {
-                        currentHistory[historyIndex].score = score;
-                    } else {
-                        currentHistory.push({ date: today, score });
+                // Optimistic UI
+                setHistory(prev => {
+                    const idx = prev.findIndex(h => h.date === today);
+                    if (idx >= 0) {
+                        const newH = [...prev];
+                        newH[idx] = { ...newH[idx], score };
+                        return newH;
                     }
-                    localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(currentHistory));
-                    setHistory(currentHistory);
+                    return [...prev, { date: today, score, session_id: SESSION_ID }];
+                });
 
-                    // Update counts
-                    const r_earn = currentTasks.filter(t => t.status === 'completed' && t.reward_text).length;
-                    const r_take = currentTasks.filter(t => t.consequence_status === 'reward_taken').length;
-                    const p_inc = currentTasks.filter(t => t.status === 'failed' && t.punishment_text).length;
-                    const p_pay = currentTasks.filter(t => t.consequence_status === 'punishment_paid').length;
-                    
-                    const currentCounts = JSON.parse(localStorage.getItem(STORAGE_KEYS.COUNTS) || '{}');
-                    currentCounts[today] = { r_earn, r_take, p_inc, p_pay };
-                    localStorage.setItem(STORAGE_KEYS.COUNTS, JSON.stringify(currentCounts));
-                    setCounts(currentCounts);
-                } catch (error) { console.error("Update stats error:", error); }
+                // DB Update
+                await supabase.from('identity_history').upsert({
+                    session_id: SESSION_ID,
+                    date: today,
+                    score: score
+                }, { onConflict: 'session_id,date' });
             };
 
-            const saveTasksToStorage = (tasksArray) => {
-                // Encrypt sensitive data before saving
-                const tasksToSave = tasksArray.map(task => ({
+            const handleSaveTask = async (task) => {
+                // Ensure array/object fields are arrays
+                const cleanTask = {
                     ...task,
-                    title: encrypt(task.title || ''),
-                    instructions: encryptList(task.instructions || []),
-                    rules: encryptList(task.rules || []),
-                    media_items: encryptList(task.media_items || []),
-                    reward_text: encrypt(task.reward_text || ''),
-                    punishment_text: encrypt(task.punishment_text || '')
-                }));
-                localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasksToSave));
-            };
-
-            const saveGoalsToStorage = (goalsArray) => {
-                // Encrypt sensitive data before saving
-                const goalsToSave = goalsArray.map(goal => ({
-                    ...goal,
-                    title: encrypt(goal.title || ''),
-                    timeline: encrypt(goal.timeline || ''),
-                    linked_systems: encryptList(goal.linked_systems || [])
-                }));
-                localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(goalsToSave));
-            };
-
-            const handleSaveTask = (task) => {
-                try {
-                    let scheduleDays = task.schedule_days || [0,1,2,3,4,5,6];
-                    
-                    const taskData = { 
-                        ...task,
-                        schedule_days: scheduleDays,
-                        last_active_date: getTodayString(),
-                    };
-                    
-                    let newTasks = [...tasks];
-                    
-                    if (task.id === 'new') { 
-                        const newId = Date.now().toString(); // Simple ID generation
-                        const newTask = { ...taskData, id: newId };
-                        newTasks = [...tasks, newTask];
-                        setTasks(newTasks);
-                    } else { 
-                        newTasks = tasks.map(t => t.id === task.id ? taskData : t);
-                        setTasks(newTasks);
-                    }
-                    
-                    saveTasksToStorage(newTasks);
-                    updateStats(newTasks);
-                    setEditingTask(null);
-                } catch (error) { console.error("Save task error:", error); }
-            };
-
-            const handleDeleteTask = (id) => {
-                if (!confirm("Delete this habit?")) return; 
-                try {
-                    const n = tasks.filter(t => t.id !== id); 
-                    setTasks(n); 
-                    saveTasksToStorage(n);
-                    updateStats(n); 
-                    setEditingTask(null);
-                } catch (error) { console.error("Delete task error:", error); }
-            };
-
-            const handleStateChange = (id, type) => {
-                try {
-                    let updates = {}; 
-                    if (type === 'complete') updates = { status: 'completed', consequence_status: 'reward_pending' }; 
-                    else if (type === 'fail') updates = { status: 'failed', consequence_status: 'punishment_pending' }; 
-                    else if (type === 'reset') updates = { status: 'idle', consequence_status: 'none' }; 
-                    else if (type === 'claim_reward') updates = { consequence_status: 'reward_taken' }; 
-                    else if (type === 'pay_punishment') updates = { consequence_status: 'punishment_paid' };
-                    
-                    const newTasks = tasks.map(t => t.id === id ? { ...t, ...updates } : t); 
-                    setTasks(newTasks); 
-                    
-                    saveTasksToStorage(newTasks);
-                    updateStats(newTasks);
-                } catch (error) { console.error("State change error:", error); }
-            };
-
-            const handleGoalUpdate = (goal, isDelete = false) => {
-                try {
-                    if (isDelete) { 
-                        if (!confirm("Delete goal?")) return; 
-                        const newGoals = goals.filter(g => g.id !== goal.id);
-                        setGoals(newGoals); 
-                        saveGoalsToStorage(newGoals);
-                        setEditingGoal(null); 
-                        return; 
-                    }
-                    
-                    let newGoals = [...goals];
-                    
-                    if (goal.id === 'new') { 
-                        const newId = Date.now().toString(); // Simple ID generation
-                        const newGoal = { ...goal, id: newId };
-                        newGoals = [...goals, newGoal];
-                        setGoals(newGoals);
-                    } else { 
-                        newGoals = goals.map(g => g.id === goal.id ? goal : g);
-                        setGoals(newGoals);
-                    }
-                    
-                    saveGoalsToStorage(newGoals);
-                    setEditingGoal(null);
-                } catch (error) { console.error("Goal update error:", error); }
-            };
-
-            const handleSeal = (days) => { 
-                if(!confirm(`Lock system for ${days} days?`)) return; 
-                try {
-                    const date = new Date(); date.setDate(date.getDate() + days); 
-                    const settings = { locked_until: date.toISOString() };
-                    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-                    setLockDate(date.toISOString()); 
-                } catch (error) { console.error("Seal error:", error); }
-            };
-            
-            const handleBreakLock = () => { 
-                const phrase = LANG[lang].shame_phrases[Math.floor(Math.random() * LANG[lang].shame_phrases.length)]; 
-                const input = prompt(`${t('break_contract')}\n\nType exactly:\n"${phrase}"`); 
-                if (input === phrase) { 
-                    const settings = { locked_until: null };
-                    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-                    setLockDate(null); 
-                } else { alert("Incorrect."); } 
-            };
-            
-            const handleResetDay = () => { 
-                if(!confirm("Reset ALL progress for today?")) return; 
-                try {
-                    const today = getTodayString(); 
-                    const resetTasks = tasks.map(t => ({ ...t, status: 'idle', consequence_status: 'none', last_active_date: today })); 
-                    setTasks(resetTasks); 
-                    saveTasksToStorage(resetTasks);
-                    updateStats(resetTasks); 
-                } catch (error) { console.error("Reset day error:", error); }
-            };
-
-            const handleTimerChange = (id, seconds, isRunning, startTime = null) => {
-                setActiveTimer({ id, seconds, isRunning, startTime: startTime || (isRunning ? Date.now() - (seconds * 1000) : null) });
-            };
-
-            // Export all data
-            const handleExportData = () => {
-                try {
-                    const allData = {
-                        version: '1.0',
-                        exportDate: new Date().toISOString(),
-                        tasks: JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS) || '[]'),
-                        goals: JSON.parse(localStorage.getItem(STORAGE_KEYS.GOALS) || '[]'),
-                        history: JSON.parse(localStorage.getItem(STORAGE_KEYS.HISTORY) || '[]'),
-                        counts: JSON.parse(localStorage.getItem(STORAGE_KEYS.COUNTS) || '{}'),
-                        settings: JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{}'),
-                        theme: localStorage.getItem(STORAGE_KEYS.THEME),
-                        language: localStorage.getItem(STORAGE_KEYS.LANGUAGE),
-                        encryptionKey: ENCRYPTION_KEY
-                    };
-                    
-                    const dataStr = JSON.stringify(allData);
-                    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-                    const exportFileDefaultName = 'identity_architecture_backup.json';
-                    
-                    const linkElement = document.createElement('a');
-                    linkElement.setAttribute('href', dataUri);
-                    linkElement.setAttribute('download', exportFileDefaultName);
-                    linkElement.click();
-                } catch (error) {
-                    console.error("Export error:", error);
-                    alert("Error exporting data");
-                }
-            };
-
-            // Import all data
-            const handleImportData = (file) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const importedData = JSON.parse(e.target.result);
-                        
-                        if (!importedData.version || !importedData.encryptionKey) {
-                            alert("Invalid backup file format");
-                            return;
-                        }
-                        
-                        if (confirm("This will overwrite all current data. Are you sure?")) {
-                            // Save all imported data to localStorage
-                            if (importedData.tasks) localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(importedData.tasks));
-                            if (importedData.goals) localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(importedData.goals));
-                            if (importedData.history) localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(importedData.history));
-                            if (importedData.counts) localStorage.setItem(STORAGE_KEYS.COUNTS, JSON.stringify(importedData.counts));
-                            if (importedData.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(importedData.settings));
-                            if (importedData.theme) localStorage.setItem(STORAGE_KEYS.THEME, importedData.theme);
-                            if (importedData.language) localStorage.setItem(STORAGE_KEYS.LANGUAGE, importedData.language);
-                            
-                            // Update encryption key
-                            localStorage.setItem(STORAGE_KEYS.ENCRYPTION_KEY, importedData.encryptionKey);
-                            
-                            // Reload the app
-                            window.location.reload();
-                        }
-                    } catch (error) {
-                        console.error("Import error:", error);
-                        alert("Error importing data. File may be corrupted.");
-                    }
+                    instructions: Array.isArray(task.instructions) ? task.instructions : [],
+                    rules: Array.isArray(task.rules) ? task.rules : [],
+                    media_items: Array.isArray(task.media_items) ? task.media_items : [],
+                    schedule_days: Array.isArray(task.schedule_days) ? task.schedule_days : [0,1,2,3,4,5,6]
                 };
-                reader.readAsText(file);
-            };
 
-            return (
-                <div className="flex flex-col h-[100dvh]">
-                    {isLoading && (
-                        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
-                            <div className="text-white text-lg">Loading...</div>
-                        </div>
-                    )}
-                    
-                    <main className="flex-1 overflow-y-auto pb-24 md:pb-0 md:pt-24 px-4 py-6 w-full max-w-2xl mx-auto">
-                        {activeTab === 'daily' && (
-                            <DailyView 
-                                tasks={tasks} 
-                                t={t} 
-                                onSelectTask={id => setSelectedTaskId(id)} 
-                                isManaging={isManagingHabits} 
-                                isLocked={isLocked} 
-                                onToggleManage={() => !isLocked && setIsManagingHabits(!isManagingHabits)} 
-                                onEdit={setEditingTask} 
-                                onDelete={handleDeleteTask}
-                                onNew={() => setEditingTask({ id: 'new', title: '', type: 'habit', start_time: '', end_time: '', instructions: [], rules: [], media_items: [], schedule_days: [0,1,2,3,4,5,6], reward_text: '', punishment_text: '' })} 
-                                onStateChange={handleStateChange} 
-                            />
-                        )}
-                        {activeTab === 'progress' && <ProgressView history={history} counts={counts} t={t} />}
-                        {activeTab === 'goals' && (
-                            <GoalsView 
-                                goals={goals} 
-                                t={t} 
-                                isManaging={isManagingGoals && !isLocked} 
-                                onToggleManage={() => !isLocked && setIsManagingGoals(!isManagingGoals)} 
-                                onEdit={setEditingGoal} 
-                                onNew={() => setEditingGoal({ id: 'new', title: '', timeline: '', linked_systems: [], is_completed: false })} 
-                                onCheck={(id, val) => handleGoalUpdate({ ...goals.find(g => g.id === id), is_completed: val })} 
-                            />
-                        )}
-                        {activeTab === 'settings' && (
-                            <SettingsView 
-                                theme={theme} 
-                                setTheme={setTheme} 
-                                lang={lang} 
-                                setLang={setLang} 
-                                t={t} 
-                                isLocked={isLocked} 
-                                onSeal={handleSeal} 
-                                onBreak={handleBreakLock} 
-                                onResetDay={handleResetDay}
-                                onExport={handleExportData}
-                                onImport={handleImportData}
-                            />
-                        )}
-                    </main>
+                const payload = {
+                    session_id: SESSION_ID,
+                    title: encrypt(cleanTask.title),
+                    start_time: cleanTask.start_time,
+                    end_time: cleanTask.end_time,
+                    schedule_days: cleanTask.schedule_days, // JSONB handles array directly
+                    instructions: encryptObject(cleanTask.instructions),
+                    rules: encryptObject(cleanTask.rules),
+                    media_items: encryptObject(cleanTask.media_items),
+                    reward_text: encrypt(cleanTask.reward_text),
+                    punishment_text: encrypt(cleanTask.punishment_text),
+                    status: cleanTask.status || 'idle',
+                    consequence_status: cleanTask.consequence_status || 'none',
+                    last_active_date: getTodayString()
+                };
 
-                    <nav className="fixed bottom-0 w-full bg-theme-card border-t border-theme md:top-0 md:bottom-auto z-40 flex justify-around p-3 pb-safe md:justify-center md:gap-12 shadow-2xl transition-colors duration-300">
-                        <NavButton icon={Icons.Layout} label={t('system')} active={activeTab === 'daily'} onClick={() => { setActiveTab('daily'); setIsManagingHabits(false); setIsManagingGoals(false); }} />
-                        <NavButton icon={Icons.BarChart2} label={t('truth')} active={activeTab === 'progress'} onClick={() => { setActiveTab('progress'); setIsManagingHabits(false); setIsManagingGoals(false); }} />
-                        <NavButton icon={Icons.Target} label={t('goals')} active={activeTab === 'goals'} onClick={() => { setActiveTab('goals'); setIsManagingHabits(false); setIsManagingGoals(false); }} />
-                        <NavButton icon={Icons.Settings} label={t('settings')} active={activeTab === 'settings'} onClick={() => { setActiveTab('settings'); setIsManagingHabits(false); setIsManagingGoals(false); }} />
-                    </nav>
+                let updatedTasks = [...tasks];
 
-                    {selectedTaskId && !isManagingHabits && (
-                        <TaskDrawer 
-                            task={tasks.find(t => t.id === selectedTaskId)} 
-                            t={t} 
-                            onClose={() => setSelectedTaskId(null)} 
-                            onStateChange={handleStateChange}
-                            activeTimer={activeTimer}
-                            onTimerChange={handleTimerChange}
-                        />
-                    )}
-                    
-                    {editingTask && <TaskEditor task={editingTask} t={t} onSave={handleSaveTask} onDelete={handleDeleteTask} onClose={() => setEditingTask(null)} />}
-                    
-                    {editingGoal && (
-                        <GoalEditor 
-                            goal={editingGoal} 
-                            t={t} 
-                            onSave={(goal) => handleGoalUpdate(goal)} 
-                            onDelete={() => handleGoalUpdate(editingGoal, true)} 
-                            onClose={() => setEditingGoal(null)} 
-                        />
-                    )}
-                </div>
-            );
-        }
-
-        // --- VIEWS ---
-        function DailyView({ tasks, t, onSelectTask, isManaging, isLocked, onToggleManage, onEdit, onDelete, onNew, onStateChange }) {
-            const today = new Date(); 
-            const dayIndex = today.getDay();
-            
-            const visibleTasks = tasks.filter(task => {
-                if (isManaging) return true;
-                
-                let schedule = task.schedule_days;
-                
-                if (typeof schedule === 'string') {
-                    try {
-                        schedule = JSON.parse(schedule);
-                    } catch (e) {
-                        return true;
-                    }
-                }
-                
-                if (!Array.isArray(schedule) || schedule.length === 0) {
-                    return true;
-                }
-                
-                schedule = schedule.map(d => Number(d));
-                
-                return schedule.includes(dayIndex);
-            }).sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
-            
-            const progress = visibleTasks.length > 0 ? Math.round((visibleTasks.filter(t => t.status === 'completed').length / visibleTasks.length) * 100) : 0;
-            
-            const handleTaskClick = (id, status) => {
-                if (isManaging) { onEdit(tasks.find(t => t.id === id)); return; }
-                if (status !== 'completed' && status !== 'failed') { onSelectTask(id); }
-            };
-
-            return (
-                <div className="space-y-8 animate-[fadeIn_0.5s_ease-out]">
-                    <header className="border-l-2 border-[var(--muted)] pl-4 py-2 mt-8 md:mt-0">
-                        <h2 className="text-[var(--muted)] text-xs md:text-sm uppercase tracking-widest font-mono">
-                            {today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-                        </h2>
-                        <h1 className="text-lg md:text-xl font-bold text-[var(--text)] mt-1 leading-tight">
-                            {isManaging ? t('architect') : t('today_win')}
-                        </h1>
-                        {!isManaging && (
-                            <div className="h-1 w-full bg-[var(--border)] mt-3 rounded overflow-hidden">
-                                <div className="h-full bg-[var(--accent)] transition-all duration-500" style={{ width: `${progress}%` }}></div>
-                            </div>
-                        )}
-                    </header>
-
-                    <div className="space-y-3 relative pb-24">
-                        <div className="absolute left-[3.5rem] top-0 bottom-0 w-px bg-[var(--border)] -z-10"></div>
-                        
-                        {visibleTasks.length === 0 ? (
-                            <div className="text-center py-8 text-[var(--muted)]">
-                                <p>{isManaging ? "No habits created yet" : "No habits scheduled for today"}</p>
-                                {isManaging && (
-                                    <button onClick={onNew} className="mt-4 inline-flex items-center gap-2 text-sm text-[var(--accent)]">
-                                        <Icons.Plus size={16} /> Create your first habit
-                                    </button>
-                                )}
-                            </div>
-                        ) : (
-                            visibleTasks.map((task) => (
-                                <div key={task.id} className="group">
-                                    <div 
-                                        onClick={() => handleTaskClick(task.id, task.status)} 
-                                        className={`flex items-center gap-4 p-4 rounded-lg border transition-all 
-                                            ${isManaging 
-                                                ? 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)] cursor-default' 
-                                                : task.status === 'completed' 
-                                                    ? 'bg-[var(--card)] border-[var(--border)] opacity-60 cursor-default' 
-                                                    : task.status === 'failed' 
-                                                        ? 'bg-[var(--card)] border-[var(--danger)] cursor-default' 
-                                                        : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--muted)] cursor-pointer active:scale-[0.98]'}`}
-                                    >
-                                        <div className="w-12 text-xs font-mono text-[var(--muted)] text-right flex flex-col gap-1">
-                                            <span>{task.start_time || '--:--'}</span>
-                                            <span className="opacity-50">{task.end_time || '--:--'}</span>
-                                        </div>
-                                        <div className={`w-3 h-3 rounded-full shrink-0 transition-colors duration-500 
-                                            ${task.status === 'completed' ? 'bg-[var(--success)]' : task.status === 'failed' ? 'bg-[var(--danger)]' : 'bg-[var(--border)]'}`}>
-                                        </div>
-                                        <div className="flex-1">
-                                            <h3 className={`font-medium text-sm md:text-base ${task.status === 'completed' && !isManaging ? 'line-through text-[var(--muted)]' : 'text-[var(--text)]'}`}>
-                                                {task.title || 'Untitled Habit'}
-                                            </h3>
-                                            {task.status === 'failed' && (
-                                                <span className="text-[10px] text-[var(--danger)] font-bold uppercase">FAILED</span>
-                                            )}
-                                        </div>
-                                        {isManaging ? (
-                                            <div className="flex gap-2">
-                                                <button onClick={(e) => { e.stopPropagation(); onEdit(task); }} 
-                                                        className="p-2 text-[var(--muted)] hover:text-[var(--text)]">
-                                                    <Icons.Edit size={16} />
-                                                </button>
-                                                <button onClick={(e) => { 
-                                                    e.stopPropagation(); 
-                                                    if(confirm(`Delete "${task.title || 'this habit'}"?`)) {
-                                                        onDelete(task.id);
-                                                    }
-                                                }} className="p-2 text-[var(--danger)] hover:text-red-300">
-                                                    <Icons.Trash size={16} />
-                                                </button>
-                                            </div>
-                                        ) : task.status === 'completed' ? (
-                                            <Icons.CheckCircle size={18} className="text-[var(--success)]" />
-                                        ) : task.status === 'failed' ? (
-                                            <Icons.X size={18} className="text-[var(--danger)]" />
-                                        ) : (
-                                            <Icons.ChevronRight size={18} className="text-[var(--border)] group-hover:text-[var(--muted)]" />
-                                        )}
-                                    </div>
-                                    
-                                    {/* Punishment Sub-task */}
-                                    {task.status === 'failed' && task.punishment_text && (
-                                        <div className="ml-16 mt-2 p-3 bg-[var(--bg)] border border-[var(--danger)] rounded border-dashed flex items-center justify-between">
-                                            <div className="text-xs text-[var(--danger)]">
-                                                <span className="font-bold uppercase">Punishment:</span> {task.punishment_text}
-                                            </div>
-                                            <button 
-                                                onClick={() => onStateChange(task.id, 'pay_punishment')}
-                                                disabled={task.consequence_status === 'punishment_paid'}
-                                                className={`w-5 h-5 rounded border flex items-center justify-center transition-colors 
-                                                    ${task.consequence_status === 'punishment_paid' ? 'bg-[var(--danger)] border-[var(--danger)] text-white' : 'border-[var(--danger)] text-transparent hover:bg-red-900/10'}`}
-                                            >
-                                                <Icons.Check size={14} />
-                                            </button>
-                                        </div>
-                                    )}
-                                    
-                                    {/* Reward Sub-task */}
-                                    {task.status === 'completed' && task.reward_text && (
-                                        <div className="ml-16 mt-2 p-3 bg-[var(--bg)] border border-[var(--success)] rounded border-dashed flex items-center justify-between">
-                                            <div className="text-xs text-[var(--success)]">
-                                                <span className="font-bold uppercase">Reward:</span> {task.reward_text}
-                                            </div>
-                                            <button 
-                                                onClick={() => onStateChange(task.id, 'claim_reward')}
-                                                disabled={task.consequence_status === 'reward_taken'}
-                                                className={`w-5 h-5 rounded border flex items-center justify-center transition-colors 
-                                                    ${task.consequence_status === 'reward_taken' ? 'bg-[var(--success)] border-[var(--success)] text-white' : 'border-[var(--success)] text-transparent hover:bg-green-900/10'}`}
-                                            >
-                                                <Icons.Check size={14} />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            ))
-                        )}
-                        
-                        {isManaging && (
-                            <button onClick={onNew} className="w-full py-4 border-2 border-dashed border-[var(--border)] rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--muted)] flex justify-center items-center gap-2 transition-all">
-                                <Icons.Plus size={20} /> <span className="uppercase text-xs font-bold tracking-widest">{t('new_block')}</span>
-                            </button>
-                        )}
-                        
-                        {!isLocked && (
-                            <div className="text-center pt-8">
-                                <button onClick={onToggleManage} className={`text-[10px] font-mono flex items-center justify-center gap-2 px-4 py-2 rounded-full mx-auto transition-colors ${isManaging ? 'text-[var(--warn)] bg-[var(--warn)]/10' : 'text-[var(--muted)] hover:text-[var(--text)]'}`}>
-                                    {isManaging ? <><Icons.Unlock size={12} /> {t('unlock')}</> : <><Icons.Lock size={12} /> {t('architect')}</>}
-                                </button>
-                            </div>
-                        )}
-                        
-                        {isLocked && (
-                            <div className="text-center pt-8">
-                                <span className="text-[10px] font-mono text-[var(--success)] flex items-center justify-center gap-2"><Icons.Lock size={12}/> {t('locked')}</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        }
-
-        function ProgressView({ history, counts, t }) {
-            const [view, setView] = useState('score'); 
-            const [range, setRange] = useState('week');
-            
-            const chartData = useMemo(() => {
-                const days = range === 'week' ? 7 : 30; 
-                const d = []; 
-                const today = new Date();
-                for (let i = days - 1; i >= 0; i--) { 
-                    const date = new Date(); date.setDate(today.getDate() - i); const dateStr = date.toLocaleDateString('en-CA');
-                    const hItem = history.find(h => h.date === dateStr); const cItem = counts[dateStr] || { r_earn: 0, r_take: 0, p_inc: 0, p_pay: 0 };
-                    d.push({ 
-                        label: date.toLocaleDateString('en-US', { weekday: 'narrow' }), 
-                        score: hItem ? hItem.score : 0, 
-                        r_rate: cItem.r_earn > 0 ? Math.round((cItem.r_take / cItem.r_earn) * 100) : 0, 
-                        p_rate: cItem.p_inc > 0 ? Math.round((cItem.p_pay / cItem.p_inc) * 100) : 0 
-                    }); 
-                } 
-                return d; 
-            }, [history, counts, range]);
-            
-            const getData = (d) => view === 'score' ? d.score : (view === 'rewards' ? d.r_rate : d.p_rate);
-            const currentValue = chartData.length > 0 ? getData(chartData[chartData.length - 1]) : 0;
-            const averageValue = chartData.length > 0 ? Math.round(chartData.reduce((sum, d) => sum + getData(d), 0) / chartData.length) : 0;
-            const points = chartData.map((d, i) => `${(i / (chartData.length - 1)) * 100},${100 - getData(d)}`).join(' ');
-
-            return (
-                <div className="pt-8 space-y-8 animate-[slideUp_0.5s_ease-out]">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="flex gap-2 bg-theme-card p-1 rounded-lg border border-theme">
-                            {['week', 'month'].map(r => <button key={r} onClick={() => setRange(r)} className={`px-4 py-1.5 rounded-md text-[10px] uppercase font-bold transition-all ${range === r ? 'theme-btn' : 'text-muted-theme'}`}>{t(r)}</button>)}
-                        </div>
-                        <div className="flex gap-2 bg-theme-card p-1 rounded-lg border border-theme">
-                            {['score', 'rewards', 'punishments'].map(v => <button key={v} onClick={() => setView(v)} className={`px-4 py-1.5 rounded-md text-[10px] uppercase font-bold transition-all ${view === v ? 'theme-btn' : 'text-muted-theme'}`}>{t(v)}</button>)}
-                        </div>
-                    </div>
-                    
-                    <div className="flex justify-between items-center bg-theme-card border-theme border p-6 rounded-xl">
-                        <div className="text-center">
-                            <div className="text-xs uppercase tracking-widest text-muted-theme mb-1">Current</div>
-                            <div className={`text-3xl font-bold ${view === 'score' ? 'text-[var(--accent)]' : view === 'rewards' ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>{currentValue}%</div>
-                        </div>
-                        <div className="text-center">
-                            <div className="text-xs uppercase tracking-widest text-muted-theme mb-1">Average</div>
-                            <div className="text-3xl font-bold text-theme">{averageValue}%</div>
-                        </div>
-                    </div>
-                    
-                    <div className="h-64 w-full relative p-4 bg-theme-card border-theme border rounded-xl">
-                        <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
-                            <defs>
-                                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.2"/>
-                                    <stop offset="100%" stopColor="var(--accent)" stopOpacity="0"/>
-                                </linearGradient>
-                            </defs>
-                            <line x1="0" y1="0" x2="100" y2="0" stroke="var(--border)" strokeWidth="0.5" strokeDasharray="2" />
-                            <line x1="0" y1="50" x2="100" y2="50" stroke="var(--border)" strokeWidth="0.5" strokeDasharray="2" />
-                            <line x1="0" y1="100" x2="100" y2="100" stroke="var(--border)" strokeWidth="0.5" strokeDasharray="2" />
-                            <polygon points={`0,100 ${points} 100,100`} fill="url(#chartGradient)" />
-                            <polyline fill="none" stroke={view === 'score' ? 'var(--accent)' : view === 'rewards' ? 'var(--success)' : 'var(--danger)'} strokeWidth="2" points={points} vectorEffect="non-scaling-stroke"/>
-                            {chartData.map((d, i) => (
-                                <circle key={i} cx={(i / (chartData.length - 1)) * 100} cy={100 - getData(d)} r="1.5" fill="var(--bg)" stroke={view === 'score' ? 'var(--accent)' : view === 'rewards' ? 'var(--success)' : 'var(--danger)'} strokeWidth="1" vectorEffect="non-scaling-stroke" />
-                            ))}
-                        </svg>
-                        <div className="flex justify-between mt-2 text-[9px] text-muted-theme font-mono uppercase">
-                            {chartData.filter((_, i) => i % Math.ceil(chartData.length/7) === 0).map((d, i) => <span key={i}>{d.label}</span>)}
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        function GoalsView({ goals, t, isManaging, onToggleManage, onEdit, onNew, onCheck }) {
-            return (
-                <div className="pt-8 space-y-8 animate-[slideUp_0.5s_ease-out]">
-                    <div className="flex justify-between items-end border-b border-theme pb-4">
-                        <h2 className="text-2xl font-bold text-theme">{t('goals')}</h2>
-                        <button onClick={onToggleManage} className="text-xs font-bold uppercase text-muted-theme">{isManaging ? t('save') : t('architect')}</button>
-                    </div>
-                    <div className="space-y-4">
-                        {goals.map(g => (
-                            <div key={g.id} className={`p-6 bg-theme-card border-theme border rounded-xl relative transition-all ${g.is_completed ? 'opacity-60 border-[var(--success)]' : ''}`}>
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="flex gap-4 items-center">
-                                        <button onClick={() => onCheck(g.id, !g.is_completed)} className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${g.is_completed ? 'bg-[var(--success)] border-transparent text-black' : 'border-[var(--muted)]'}`}>
-                                            {g.is_completed && <Icons.Check size={14} />}
-                                        </button>
-                                        <div>
-                                            <h3 className={`font-bold text-lg text-theme ${g.is_completed ? 'line-through text-muted-theme' : ''}`}>{g.title || 'Untitled Goal'}</h3>
-                                            <span className="text-[10px] font-bold uppercase bg-theme-bg px-2 py-0.5 rounded text-muted-theme">{g.timeline || 'No timeline'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="space-y-2 pl-10">
-                                    <p className="text-[10px] text-muted-theme uppercase font-bold tracking-wider">Supported By</p>
-                                    {g.linked_systems && g.linked_systems.length > 0 ? (
-                                        g.linked_systems.map((s, i) => {
-                                            const text = typeof s === 'object' ? (s.text || '') : (s || '');
-                                            return (
-                                                <div key={i} className="flex items-center gap-2 text-sm text-muted-theme">
-                                                    <Icons.CheckCircle size={12} /> {text}
-                                                </div>
-                                            );
-                                        })
-                                    ) : (
-                                        <div className="text-sm text-muted-theme italic">No linked systems</div>
-                                    )}
-                                </div>
-                                {isManaging && <button onClick={() => onEdit(g)} className="absolute top-3 right-3 p-2 bg-theme-bg rounded text-muted-theme"><Icons.Edit size={16} /></button>}
-                            </div>
-                        ))}
-                        {isManaging && <button onClick={onNew} className="w-full py-5 border-2 border-dashed border-theme rounded-xl flex justify-center items-center gap-2 text-muted-theme font-bold uppercase text-xs hover:brightness-125"><Icons.Plus size={20} /> New Goal</button>}
-                    </div>
-                </div>
-            );
-        }
-
-        function SettingsView({ theme, setTheme, lang, setLang, t, isLocked, onSeal, onBreak, onResetDay, onExport, onImport }) {
-            const fileRef = useRef(null); 
-            
-            const handleImportClick = () => {
-                fileRef.current.click();
-            };
-            
-            const handleFileChange = (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    onImport(file);
-                }
-            };
-            
-            return (
-                <div className="space-y-8 animate-[fadeIn_0.5s_ease-out] pt-8">
-                    <h1 className="text-2xl font-bold text-theme">{t('settings')}</h1>
-                    
-                    <div className={`p-6 rounded-xl border ${isLocked ? 'border-[var(--success)] bg-green-900/10' : 'bg-theme-card border-theme'}`}>
-                        <h2 className="text-xs font-bold uppercase tracking-widest text-muted-theme mb-4">{t('seal_contract')}</h2>
-                        {!isLocked ? (
-                            <div className="space-y-3">
-                                <p className="text-xs text-muted-theme">{t('seal_desc')}</p>
-                                <div className="flex gap-2">
-                                    {[7, 14, 21].map(d => <button key={d} onClick={() => onSeal(d)} className="flex-1 bg-theme-bg border border-theme py-3 rounded-lg text-xs font-bold text-theme hover:bg-[var(--success)] hover:text-white transition-colors">{d} {t('days')}</button>)}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="text-center space-y-4">
-                                <p className="text-sm font-bold text-[var(--success)]">{t('locked')}</p>
-                                <button onClick={onBreak} className="text-xs text-[var(--danger)] border border-[var(--danger)] px-4 py-2 rounded hover:bg-[var(--danger)] hover:text-white transition-colors">{t('break_contract')}</button>
-                            </div>
-                        )}
-                    </div>
-                    
-                    <div className="bg-theme-card border-theme border p-6 rounded-xl">
-                        <button onClick={onResetDay} className="w-full text-[var(--danger)] border border-[var(--danger)] py-3 rounded-lg text-xs font-bold uppercase hover:bg-[var(--danger)] hover:text-white transition-colors">{t('reset_day')}</button>
-                    </div>
-                    
-                    <div className="bg-theme-card border-theme border p-6 rounded-xl">
-                        <h2 className="text-xs font-bold uppercase tracking-widest text-muted-theme mb-4">{t('language')}</h2>
-                        <div className="flex gap-2">
-                            {['en', 'ar', 'de'].map(l => <button key={l} onClick={() => setLang(l)} className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase border transition-all ${lang === l ? 'theme-btn border-transparent' : 'bg-theme-bg text-muted-theme border-theme'}`}>{l === 'en' ? 'EN' : l === 'ar' ? 'AR' : 'DE'}</button>)}
-                        </div>
-                    </div>
-                    
-                    <div className="bg-theme-card border-theme border p-6 rounded-xl">
-                        <h2 className="text-xs font-bold uppercase tracking-widest text-muted-theme mb-4">{t('theme')}</h2>
-                        <div className="flex gap-2">
-                            {['midnight', 'pure', 'light'].map(th => <button key={th} onClick={() => setTheme(th)} className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase border transition-all ${theme === th ? 'theme-btn border-transparent' : 'bg-theme-bg text-muted-theme border-theme'}`}>{th}</button>)}
-                        </div>
-                    </div>
-                    
-                    <div className="bg-theme-card border-theme border p-6 rounded-xl">
-                        <h2 className="text-xs font-bold uppercase tracking-widest text-muted-theme mb-4">{t('backup')}</h2>
-                        <div className="flex flex-col gap-3">
-                            <button onClick={onExport} className="w-full bg-theme-bg py-4 rounded-lg border border-theme hover:brightness-125 transition-colors flex items-center justify-center gap-3 font-bold text-theme">
-                                <Icons.Download size={16} /> {t('save')}
-                            </button>
-                            <button onClick={handleImportClick} className="w-full bg-theme-bg py-4 rounded-lg border border-theme hover:brightness-125 transition-colors flex items-center justify-center gap-3 font-bold text-theme">
-                                <Icons.Upload size={16} /> {t('restore')}
-                            </button>
-                            <input type="file" ref={fileRef} onChange={handleFileChange} accept=".json" className="hidden" />
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        function TaskDrawer({ task, t, onClose, onStateChange, activeTimer, onTimerChange }) {
-            if (!task) return null;
-            
-            const isCurrentTask = activeTimer.id === task.id;
-            const isRunning = isCurrentTask ? activeTimer.isRunning : false;
-            const startTime = isCurrentTask ? activeTimer.startTime : null;
-            
-            // Calculate seconds based on elapsed time from startTime
-            const calculateSeconds = () => {
-                if (!isRunning || !startTime) return activeTimer.seconds || 0;
-                const elapsed = Math.floor((Date.now() - startTime) / 1000);
-                return elapsed;
-            };
-            
-            const [displaySeconds, setDisplaySeconds] = useState(calculateSeconds());
-            
-            useEffect(() => {
-                let interval;
-                if (isRunning && isCurrentTask) {
-                    interval = setInterval(() => {
-                        const newSeconds = calculateSeconds();
-                        setDisplaySeconds(newSeconds);
-                    }, 100); // Update more frequently for smoother display
-                } else if (isCurrentTask) {
-                    setDisplaySeconds(activeTimer.seconds || 0);
-                }
-                return () => clearInterval(interval);
-            }, [isRunning, isCurrentTask, startTime, activeTimer.seconds]);
-            
-            const handleToggleTimer = () => {
-                if (isCurrentTask) {
-                    if (isRunning) {
-                        // Pausing: save current elapsed time
-                        const elapsedSeconds = calculateSeconds();
-                        onTimerChange(task.id, elapsedSeconds, false, null);
-                    } else {
-                        // Starting: set startTime to now minus already elapsed seconds
-                        onTimerChange(task.id, displaySeconds, true, Date.now() - (displaySeconds * 1000));
+                if (task.id === 'new') {
+                    const { data, error } = await supabase.from('identity_tasks').insert([payload]).select().single();
+                    if (data) {
+                        const newTask = { ...cleanTask, id: data.id };
+                        updatedTasks = [...tasks, newTask];
+                        setTasks(updatedTasks);
                     }
                 } else {
-                    // Starting a new timer
-                    onTimerChange(task.id, 0, true, Date.now());
+                    await supabase.from('identity_tasks').update(payload).eq('id', cleanTask.id);
+                    updatedTasks = tasks.map(t => t.id === cleanTask.id ? cleanTask : t);
+                    setTasks(updatedTasks);
                 }
-            };
-            
-            const handleComplete = () => { 
-                onTimerChange(task.id, 0, false, null); 
-                onStateChange(task.id, 'complete'); 
-                onClose(); 
+
+                await updateHistoryScore(updatedTasks);
+                setEditingTask(null);
             };
 
-            const formatTime = (secs) => {
-                const h = Math.floor(secs / 3600);
-                const m = Math.floor((secs % 3600) / 60);
-                const s = secs % 60;
-                return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            const handleDeleteTask = async (id) => {
+                if (!confirm(t('delete') + "?")) return;
+                await supabase.from('identity_tasks').delete().eq('id', id);
+                const newTasks = tasks.filter(t => t.id !== id);
+                setTasks(newTasks);
+                await updateHistoryScore(newTasks);
+                setEditingTask(null);
             };
 
-            return (
-                <div className="fixed inset-0 z-[60] flex justify-end">
-                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
-                    <div className="relative w-full md:w-[600px] bg-slate-950 border-l border-slate-800 h-full flex flex-col shadow-2xl animate-[slideInRight_0.3s_ease-out]">
-                        <div className="p-6 border-b border-slate-800 flex justify-between items-start bg-slate-900">
-                            <div>
-                                <h2 className="text-xl md:text-2xl font-bold text-white">{task.title || 'Untitled Habit'}</h2>
-                                <div className="flex gap-2 text-slate-500 font-mono text-sm mt-1"><span>{task.start_time || '--:--'}</span><span>–</span><span>{task.end_time || '--:--'}</span></div>
-                            </div>
-                            <button onClick={onClose} className="text-slate-500 hover:text-white p-2"><Icons.X size={20} /></button>
-                        </div>
-                        
-                        <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                            {task.rules && task.rules.length > 0 && (
-                                <div className="flex gap-2 flex-wrap">
-                                    {task.rules.map((rule, i) => {
-                                        const ruleText = rule.text || rule || '';
-                                        return (
-                                            <span key={i} className="px-3 py-1 bg-red-950/50 text-red-200 text-xs font-bold uppercase rounded border border-red-900/50">
-                                                {ruleText}
-                                            </span>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                            
-                            <div className="space-y-4">
-                                <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold">{t('steps')}</h3>
-                                {task.instructions && task.instructions.length > 0 ? (
-                                    <ul className="space-y-3">
-                                        {task.instructions.map((step, i) => {
-                                            const stepText = step.text || step || '';
-                                            return (
-                                                <li key={i} className="flex gap-4 items-start bg-slate-900 p-4 rounded border border-slate-800">
-                                                    <div className="w-1.5 h-1.5 mt-2 bg-slate-500 rounded-full shrink-0"></div>
-                                                    <span className="text-slate-300 leading-relaxed text-sm md:text-base">{stepText}</span>
-                                                </li>
-                                            );
-                                        })}
-                                    </ul>
-                                ) : <p className="text-slate-500 italic">No steps defined</p>}
-                            </div>
+            const handleTaskStateChange = async (id, type) => {
+                let changes = {};
+                if (type === 'complete') changes = { status: 'completed', consequence_status: 'reward_pending' };
+                else if (type === 'fail') changes = { status: 'failed', consequence_status: 'punishment_pending' };
+                else if (type === 'pay_punishment') changes = { consequence_status: 'punishment_paid' };
+                else if (type === 'claim_reward') changes = { consequence_status: 'reward_taken' };
 
-                            {task.media_items && task.media_items.length > 0 && (
-                                <div className="space-y-4">
-                                    <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold">{t('media')}</h3>
-                                    <div className="space-y-3">
-                                        {task.media_items.map((media, i) => {
-                                            const label = media.label || media.text || `Reference ${i + 1}`;
-                                            const url = media.url || '';
-                                            const type = media.type || '';
-                                            
-                                            if (type === 'image') {
-                                                return (
-                                                    <div key={i} className="bg-slate-900 p-4 rounded border border-slate-800">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <Icons.Image size={14} className="text-slate-500" />
-                                                            <span className="text-slate-300 text-sm">{label}</span>
-                                                        </div>
-                                                        <img src={url} alt={label} className="w-full h-auto rounded max-h-48 object-cover" />
-                                                    </div>
-                                                );
-                                            } else if (type === 'youtube' || url.includes('youtube.com') || url.includes('youtu.be')) {
-                                                const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
-                                                return (
-                                                    <div key={i} className="bg-slate-900 p-4 rounded border border-slate-800">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <Icons.Video size={14} className="text-slate-500" />
-                                                            <span className="text-slate-300 text-sm">{label}</span>
-                                                        </div>
-                                                        {videoId && (
-                                                            <div className="aspect-video w-full rounded overflow-hidden">
-                                                                <iframe 
-                                                                    src={`https://www.youtube.com/embed/${videoId}`}
-                                                                    className="w-full h-full"
-                                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                                    allowFullScreen
-                                                                    title={label}
-                                                                ></iframe>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            } else {
-                                                return (
-                                                    <div key={i} className="bg-slate-900 p-4 rounded border border-slate-800">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <Icons.Video size={14} className="text-slate-500" />
-                                                            <span className="text-slate-300 text-sm">{label}</span>
-                                                        </div>
-                                                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-sm break-all">{url}</a>
-                                                    </div>
-                                                );
-                                            }
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-                            
-                            <div className="space-y-4">
-                                <h3 className="text-xs uppercase tracking-widest text-slate-500 font-bold">{t('timer')}</h3>
-                                <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-                                    <div className="text-center mb-6">
-                                        <div className="text-4xl font-mono font-bold text-white mb-2">{formatTime(displaySeconds)}</div>
-                                        <div className="flex justify-center gap-3">
-                                            <button onClick={handleToggleTimer} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2">
-                                                {isRunning ? <><Icons.Pause size={16} /> {t('pause')}</> : <><Icons.Play size={16} /> {t('start')}</>}
-                                            </button>
-                                            <button onClick={() => onTimerChange(task.id, 0, false, null)} className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg">
-                                                Reset
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div className="p-6 border-t border-slate-800 bg-slate-900">
-                            <div className="flex gap-3">
-                                <button onClick={() => onStateChange(task.id, 'fail')} className="flex-1 py-4 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold">{t('fail')}</button>
-                                <button onClick={handleComplete} className="flex-1 py-4 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold">{t('complete')}</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // --- EDITORS ---
-        function TaskEditor({ task, t, onSave, onDelete, onClose }) {
-            const [localTask, setLocalTask] = useState({ ...task });
-            const [activeTab, setActiveTab] = useState('details');
-            
-            const handleChange = (field, value) => {
-                setLocalTask(prev => ({ ...prev, [field]: value }));
-            };
-            
-            const handleListChange = (field, index, value) => {
-                const newList = [...(localTask[field] || [])];
-                if (index >= newList.length) newList.push({ text: '' });
-                if (typeof value === 'object') {
-                    newList[index] = value;
-                } else {
-                    newList[index] = { ...(newList[index] || {}), text: value };
-                }
-                handleChange(field, newList);
-            };
-            
-            const addListItem = (field) => {
-                handleListChange(field, localTask[field]?.length || 0, '');
-            };
-            
-            const removeListItem = (field, index) => {
-                const newList = [...(localTask[field] || [])];
-                newList.splice(index, 1);
-                handleChange(field, newList);
-            };
-            
-            const handleScheduleChange = (dayIndex) => {
-                const current = localTask.schedule_days || [0,1,2,3,4,5,6];
-                const newSchedule = current.includes(dayIndex) 
-                    ? current.filter(d => d !== dayIndex)
-                    : [...current, dayIndex].sort((a, b) => a - b);
-                handleChange('schedule_days', newSchedule);
+                const newTasks = tasks.map(t => t.id === id ? { ...t, ...changes } : t);
+                setTasks(newTasks);
+                await supabase.from('identity_tasks').update(changes).eq('id', id);
+                await updateHistoryScore(newTasks);
             };
 
-            return (
-                <div className="fixed inset-0 z-[70] flex justify-end">
-                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
-                    <div className="relative w-full md:w-[600px] bg-slate-950 border-l border-slate-800 h-full flex flex-col shadow-2xl animate-[slideInRight_0.3s_ease-out]">
-                        <div className="p-6 border-b border-slate-800 flex justify-between items-start bg-slate-900">
-                            <h2 className="text-xl font-bold text-white">{task.id === 'new' ? t('new_block') : t('edit_block')}</h2>
-                            <button onClick={onClose} className="text-slate-500 hover:text-white p-2"><Icons.X size={20} /></button>
-                        </div>
-                        
-                        <div className="flex border-b border-slate-800">
-                            {['details', 'schedule', 'rewards', 'punishments'].map(tab => (
-                                <button 
-                                    key={tab} 
-                                    onClick={() => setActiveTab(tab)} 
-                                    className={`flex-1 py-4 text-sm font-medium ${activeTab === tab ? 'text-white border-b-2 border-blue-500' : 'text-slate-500 hover:text-slate-300'}`}
-                                >
-                                    {t(tab)}
-                                </button>
-                            ))}
-                        </div>
-                        
-                        <div className="flex-1 overflow-y-auto p-6">
-                            {activeTab === 'details' && (
-                                <div className="space-y-6">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-2">{t('title')}</label>
-                                        <input 
-                                            type="text" 
-                                            value={localTask.title || ''} 
-                                            onChange={(e) => handleChange('title', e.target.value)} 
-                                            className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
-                                            placeholder="e.g., Morning Routine"
-                                        />
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-400 mb-2">Start Time</label>
-                                            <input 
-                                                type="time" 
-                                                value={localTask.start_time || ''} 
-                                                onChange={(e) => handleChange('start_time', e.target.value)} 
-                                                className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-400 mb-2">End Time</label>
-                                            <input 
-                                                type="time" 
-                                                value={localTask.end_time || ''} 
-                                                onChange={(e) => handleChange('end_time', e.target.value)} 
-                                                className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
-                                            />
-                                        </div>
-                                    </div>
-                                    
-                                    <div>
-                                        <div className="flex justify-between items-center mb-2">
-                                            <label className="block text-sm font-medium text-slate-400">{t('steps')}</label>
-                                            <button onClick={() => addListItem('instructions')} className="text-sm text-blue-400 hover:text-blue-300">+ Add</button>
-                                        </div>
-                                        {localTask.instructions?.map((item, i) => (
-                                            <div key={i} className="flex gap-2 mb-2">
-                                                <input 
-                                                    type="text" 
-                                                    value={item.text || item || ''} 
-                                                    onChange={(e) => handleListChange('instructions', i, e.target.value)} 
-                                                    className="flex-1 p-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
-                                                    placeholder={`Step ${i + 1}`}
-                                                />
-                                                <button onClick={() => removeListItem('instructions', i)} className="p-3 text-red-400 hover:text-red-300">
-                                                    <Icons.Trash size={16} />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    
-                                    <div>
-                                        <div className="flex justify-between items-center mb-2">
-                                            <label className="block text-sm font-medium text-slate-400">{t('rules')}</label>
-                                            <button onClick={() => addListItem('rules')} className="text-sm text-blue-400 hover:text-blue-300">+ Add</button>
-                                        </div>
-                                        {localTask.rules?.map((item, i) => (
-                                            <div key={i} className="flex gap-2 mb-2">
-                                                <input 
-                                                    type="text" 
-                                                    value={item.text || item || ''} 
-                                                    onChange={(e) => handleListChange('rules', i, e.target.value)} 
-                                                    className="flex-1 p-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
-                                                    placeholder="e.g., No phone during task"
-                                                />
-                                                <button onClick={() => removeListItem('rules', i)} className="p-3 text-red-400 hover:text-red-300">
-                                                    <Icons.Trash size={16} />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    
-                                    <div>
-                                        <div className="flex justify-between items-center mb-2">
-                                            <label className="block text-sm font-medium text-slate-400">{t('media')}</label>
-                                            <button onClick={() => addListItem('media_items')} className="text-sm text-blue-400 hover:text-blue-300">+ Add</button>
-                                        </div>
-                                        {localTask.media_items?.map((item, i) => (
-                                            <div key={i} className="mb-4 p-4 bg-slate-900 border border-slate-700 rounded-lg">
-                                                <div className="flex gap-2 mb-3">
-                                                    <input 
-                                                        type="text" 
-                                                        value={item.label || item.text || ''} 
-                                                        onChange={(e) => handleListChange('media_items', i, { ...item, label: e.target.value })} 
-                                                        className="flex-1 p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm"
-                                                        placeholder="Label"
-                                                    />
-                                                    <select 
-                                                        value={item.type || ''} 
-                                                        onChange={(e) => handleListChange('media_items', i, { ...item, type: e.target.value })} 
-                                                        className="p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm"
-                                                    >
-                                                        <option value="">Type</option>
-                                                        <option value="youtube">YouTube</option>
-                                                        <option value="image">Image</option>
-                                                        <option value="link">Link</option>
-                                                    </select>
-                                                </div>
-                                                <input 
-                                                    type="text" 
-                                                    value={item.url || ''} 
-                                                    onChange={(e) => handleListChange('media_items', i, { ...item, url: e.target.value })} 
-                                                    className="w-full p-2 bg-slate-800 border border-slate-600 rounded text-white text-sm mb-2"
-                                                    placeholder="URL"
-                                                />
-                                                <div className="flex justify-end">
-                                                    <button onClick={() => removeListItem('media_items', i)} className="text-sm text-red-400 hover:text-red-300">Remove</button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {activeTab === 'schedule' && (
-                                <div className="space-y-6">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-4">{t('schedule')}</label>
-                                        <div className="grid grid-cols-7 gap-2">
-                                            {DAYS_MAP.map((day, index) => {
-                                                const isSelected = (localTask.schedule_days || [0,1,2,3,4,5,6]).includes(index);
-                                                return (
-                                                    <button
-                                                        key={day}
-                                                        onClick={() => handleScheduleChange(index)}
-                                                        className={`p-3 rounded-lg text-center transition-colors ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-900 text-slate-400 hover:bg-slate-800'}`}
-                                                    >
-                                                        <div className="text-xs font-bold">{day}</div>
-                                                        <div className="text-xs opacity-75">{index}</div>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                        <div className="mt-4 text-sm text-slate-500">
-                                            Selected days: {(localTask.schedule_days || [0,1,2,3,4,5,6]).sort((a,b) => a-b).map(d => DAYS_MAP[d]).join(', ')}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {activeTab === 'rewards' && (
-                                <div className="space-y-6">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-2">{t('reward')}</label>
-                                        <input 
-                                            type="text" 
-                                            value={localTask.reward_text || ''} 
-                                            onChange={(e) => handleChange('reward_text', e.target.value)} 
-                                            className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
-                                            placeholder="e.g., 30 minutes of video games"
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {activeTab === 'punishments' && (
-                                <div className="space-y-6">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-2">{t('punishment')}</label>
-                                        <input 
-                                            type="text" 
-                                            value={localTask.punishment_text || ''} 
-                                            onChange={(e) => handleChange('punishment_text', e.target.value)} 
-                                            className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
-                                            placeholder="e.g., 50 push-ups"
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        
-                        <div className="p-6 border-t border-slate-800 bg-slate-900">
-                            <div className="flex gap-3">
-                                {task.id !== 'new' && (
-                                    <button onClick={() => onDelete(task.id)} className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold">
-                                        {t('delete')}
-                                    </button>
-                                )}
-                                <button onClick={() => onSave(localTask)} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">
-                                    {task.id === 'new' ? 'Create' : 'Save'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        function GoalEditor({ goal, t, onSave, onDelete, onClose }) {
-            const [localGoal, setLocalGoal] = useState({ ...goal });
-            
-            const handleChange = (field, value) => {
-                setLocalGoal(prev => ({ ...prev, [field]: value }));
-            };
-            
-            const handleSystemChange = (index, value) => {
-                const newList = [...(localGoal.linked_systems || [])];
-                if (index >= newList.length) newList.push({ text: '' });
-                newList[index] = { ...(newList[index] || {}), text: value };
-                handleChange('linked_systems', newList);
-            };
-            
-            const addSystem = () => {
-                handleSystemChange(localGoal.linked_systems?.length || 0, '');
-            };
-            
-            const removeSystem = (index) => {
-                const newList = [...(localGoal.linked_systems || [])];
-                newList.splice(index, 1);
-                handleChange('linked_systems', newList);
-            };
-
-            return (
-                <div className="fixed inset-0 z-[70] flex justify-end">
-                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
-                    <div className="relative w-full md:w-[600px] bg-slate-950 border-l border-slate-800 h-full flex flex-col shadow-2xl animate-[slideInRight_0.3s_ease-out]">
-                        <div className="p-6 border-b border-slate-800 flex justify-between items-start bg-slate-900">
-                            <h2 className="text-xl font-bold text-white">Goal</h2>
-                            <button onClick={onClose} className="text-slate-500 hover:text-white p-2"><Icons.X size={20} /></button>
-                        </div>
-                        
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-400 mb-2">{t('title')}</label>
-                                <input 
-                                    type="text" 
-                                    value={localGoal.title || ''} 
-                                    onChange={(e) => handleChange('title', e.target.value)} 
-                                    className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
-                                    placeholder="e.g., Learn Spanish"
-                                />
-                            </div>
-                            
-                            <div>
-                                <label className="block text-sm font-medium text-slate-400 mb-2">Timeline</label>
-                                <input 
-                                    type="text" 
-                                    value={localGoal.timeline || ''} 
-                                    onChange={(e) => handleChange('timeline', e.target.value)} 
-                                    className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
-                                    placeholder="e.g., 3 months"
-                                />
-                            </div>
-                            
-                            <div>
-                                <div className="flex justify-between items-center mb-2">
-                                    <label className="block text-sm font-medium text-slate-400">Linked Systems</label>
-                                    <button onClick={addSystem} className="text-sm text-blue-400 hover:text-blue-300">+ Add</button>
-                                </div>
-                                {localGoal.linked_systems?.map((system, i) => (
-                                    <div key={i} className="flex gap-2 mb-2">
-                                        <input 
-                                            type="text" 
-                                            value={system.text || system || ''} 
-                                            onChange={(e) => handleSystemChange(i, e.target.value)} 
-                                            className="flex-1 p-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
-                                            placeholder="e.g., Daily Spanish practice"
-                                        />
-                                        <button onClick={() => removeSystem(i)} className="p-3 text-red-400 hover:text-red-300">
-                                            <Icons.Trash size={16} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        
-                        <div className="p-6 border-t border-slate-800 bg-slate-900">
-                            <div className="flex gap-3">
-                                {goal.id !== 'new' && (
-                                    <button onClick={() => onDelete()} className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold">
-                                        {t('delete')}
-                                    </button>
-                                )}
-                                <button onClick={() => onSave(localGoal)} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">
-                                    {goal.id === 'new' ? 'Create' : 'Save'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        function NavButton({ icon: Icon, label, active, onClick }) {
-            return (
-                <button onClick={onClick} className={`flex flex-col items-center justify-center p-2 transition-colors ${active ? 'text-[var(--accent)]' : 'text-[var(--muted)] hover:text-[var(--text)]'}`}>
-                    <Icon size={20} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest mt-1">{label}</span>
-                </button>
-            );
-        }
-
-        // --- RENDER ---
-        ReactDOM.render(<App />, document.getElementById('root'));
-    </script>
-</body>
-</html>
+            const handleSaveGoal = async (goal) => {
+                const cleanGoal = {
+                    ...goal,
+                    linked_systems: Array.isArray(goal.linked_systems) ? goal.linked_systems : []
